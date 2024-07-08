@@ -147,7 +147,7 @@ def _setup_ceph_pv(
             "mounter": "fuse",
             "fsName": fs_name,
             "staticVolume": "true",
-            "rootPath": "/isis/instrument" + ceph_mount_path,
+            "rootPath": ceph_mount_path,
         },
     )
     spec = client.V1PersistentVolumeSpec(

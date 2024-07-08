@@ -191,7 +191,7 @@ def test_setup_ceph_pv(client):
             "mounter": "fuse",
             "fsName": fs_name,
             "staticVolume": "true",
-            "rootPath": "/isis/instrument" + ceph_mount_path,
+            "rootPath": ceph_mount_path,
         },
     )
     client.V1SecretReference.assert_called_once_with(
