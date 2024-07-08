@@ -15,6 +15,8 @@ from jobcreator.queue_consumer import QueueConsumer
 from jobcreator.script_aquisition import acquire_script
 from jobcreator.utils import create_ceph_mount_path, find_sha256_of_image, logger
 
+from db.data_models import Job, State
+
 # Set up the jobcreator environment
 DB_IP = os.environ.get("DB_IP", "")
 DB_USERNAME = os.environ.get("DB_USERNAME", "")
@@ -57,7 +59,25 @@ MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e
 MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", 60 * 60 * 6))
 
 
-def process_message(message: dict[str, Any]) -> None:  # pylint: disable=too-many-locals
+def process_simple_message(message: dict[str, Any]):
+    runner_image = find_sha256_of_image(message["runner_image"])
+    script = message["script"]
+    owner = DB_UPDATER.find_owner_db_entry_or_create(experiment_number=message.get("experiment_number"),
+                                                     user_number=message.get("user_number"))
+    script = DB_UPDATER.update_script()
+    reduction = Job(
+        start=None,
+        end=None,
+        state=State.NOT_STARTED,
+        inputs={},
+        script=script,
+        outputs=None,
+        runner_image=runner_image,
+        owner_relationship=owner,
+    )
+
+
+def process_autoreduction_message(message: dict[str, Any]):    # pylint: disable=too-many-locals
     """
     Request that the k8s api spawns a job
     :param message: dict, the message is a dictionary containing the needed information for spawning a pod
@@ -121,6 +141,22 @@ def process_message(message: dict[str, Any]) -> None:  # pylint: disable=too-man
         )
     except Exception as exception:  # pylint: disable=broad-exception-caught
         logger.exception(exception)
+
+
+def process_message(message: dict[str, Any]) -> None:
+    """
+    There is an assumption that if the script and runner are provided then it is a
+    simple run and we can just start and don't need to generate the script, else it's
+    assumed to be an autoreduced one.
+    :param message: the message is a dictionary containing the needed information for spawning a pod
+    :return: None
+    """
+    if message.get("script") and message.get("runner_image") and (message.get("user_number") or message.get("experiment_number")):
+        logger.info("Processing simple message...")
+        process_simple_message(message)
+    else:
+        logger.info("Processing autoreduction message...")
+        process_autoreduction_message(message)
 
 
 def write_readiness_probe_file() -> None:
