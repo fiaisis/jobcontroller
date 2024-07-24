@@ -380,7 +380,7 @@ class JobCreator:
                 "pvs": str(pv_names),
                 "pvcs": str(pvc_names),
                 "kubectl.kubernetes.io/default-container": main_container.name,
-            }
+            },
         )
 
         job = client.V1Job(
