@@ -361,7 +361,11 @@ class JobCreator:
             ],
         )
 
-        template = client.V1PodTemplateSpec(spec=pod_spec)
+        pod_metadata = client.V1ObjectMeta(
+            labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
+        )
+
+        template = client.V1PodTemplateSpec(spec=pod_spec, metadata=pod_metadata)
 
         spec = client.V1JobSpec(
             template=template,
@@ -369,7 +373,7 @@ class JobCreator:
             ttl_seconds_after_finished=21600,  # 6 hours
         )
 
-        metadata = client.V1ObjectMeta(
+        job_metadata = client.V1ObjectMeta(
             name=job_name,
             annotations={
                 "reduction-id": str(reduction_id),
@@ -377,13 +381,12 @@ class JobCreator:
                 "pvcs": str(pvc_names),
                 "kubectl.kubernetes.io/default-container": main_container.name,
             },
-            labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
         )
 
         job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
-            metadata=metadata,
+            metadata=job_metadata,
             spec=spec,
         )
         client.BatchV1Api().create_namespaced_job(namespace=job_namespace, body=job)

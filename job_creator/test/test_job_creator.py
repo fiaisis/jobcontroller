@@ -299,24 +299,32 @@ def test_jobcreator_spawn_job_dev_mode_false(
         metadata=client.V1ObjectMeta.return_value,
         spec=client.V1JobSpec.return_value,
     )
-    client.V1ObjectMeta.assert_called_once_with(
-        name=job_name,
-        annotations={
-            "reduction-id": str(reduction_id),
-            "pvs": str([setup_archive_pv.return_value, setup_ceph_pv.return_value, setup_extras_pv.return_value]),
-            "pvcs": str(
-                [setup_archive_pvc.return_value, setup_ceph_pvc.return_value, setup_extras_pvc.return_value],
-            ),
-            "kubectl.kubernetes.io/default-container": client.V1Container.return_value.name,
-        },
-        labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
+    assert (
+        call(
+            name=job_name,
+            annotations={
+                "reduction-id": str(reduction_id),
+                "pvs": str([setup_archive_pv.return_value, setup_ceph_pv.return_value, setup_extras_pv.return_value]),
+                "pvcs": str(
+                    [setup_archive_pvc.return_value, setup_ceph_pvc.return_value, setup_extras_pvc.return_value],
+                ),
+                "kubectl.kubernetes.io/default-container": client.V1Container.return_value.name,
+            },
+        )
+        in client.V1ObjectMeta.call_args_list
     )
+    assert (
+        call(labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"}) in client.V1ObjectMeta.call_args_list
+    )
+    assert client.V1ObjectMeta.call_count == 2  # noqa: PLR2004
     client.V1JobSpec.assert_called_once_with(
         template=client.V1PodTemplateSpec.return_value,
         backoff_limit=0,
         ttl_seconds_after_finished=21600,
     )
-    client.V1PodTemplateSpec.assert_called_once_with(spec=client.V1PodSpec.return_value)
+    client.V1PodTemplateSpec.assert_called_once_with(
+        spec=client.V1PodSpec.return_value, metadata=client.V1ObjectMeta.return_value
+    )
     client.V1LabelSelector.assert_called_once_with(
         match_labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
     )
@@ -461,16 +469,6 @@ def test_jobcreator_spawn_job_dev_mode_true(
         manila_share_access_id,
     )
 
-    client.V1ObjectMeta.assert_called_once_with(
-        name=job_name,
-        annotations={
-            "reduction-id": str(reduction_id),
-            "pvs": str([setup_archive_pv.return_value, setup_extras_pv.return_value]),
-            "pvcs": str([setup_archive_pvc.return_value, setup_extras_pvc.return_value]),
-            "kubectl.kubernetes.io/default-container": client.V1Container.return_value.name,
-        },
-        labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
-    )
     assert (
         call(name="ceph-mount", empty_dir=client.V1EmptyDirVolumeSource.return_value) in client.V1Volume.call_args_list
     )
