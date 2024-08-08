@@ -6,8 +6,8 @@ from unittest import mock
 from unittest.mock import call
 
 import pytest
+from db.data_models import State
 
-from jobwatcher.database.state_enum import State
 from jobwatcher.job_watcher import (
     JobWatcher,
     _find_latest_raised_error_and_stacktrace_from_reversed_logs,
@@ -441,12 +441,12 @@ def test_process_job_failed(job_watcher_maker):
     jw.process_job_failed()
 
     jw.db_updater.update_completed_run.assert_called_once_with(
-        db_reduction_id=jw.job.metadata.annotations["reduction-id"],
+        db_job_id=jw.job.metadata.annotations["job-id"],
         state=State(State.ERROR),
         status_message=status_message,
         output_files=[],
-        reduction_end=str(end),
-        reduction_start=start,
+        end=str(end),
+        start=start,
         stacktrace=stacktrace,
     )
 
@@ -496,12 +496,12 @@ def test_process_job_success(job_watcher_maker):
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw.db_updater.update_completed_run.assert_called_once_with(
-        db_reduction_id=job_id,
+        db_job_id=job_id,
         state=State.SUCCESSFUL,
         status_message="status_message",
         output_files="output_file.nxs",
-        reduction_end=str(end),
-        reduction_start=start,
+        end=str(end),
+        start=start,
         stacktrace="",
     )
 
@@ -547,12 +547,12 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw.db_updater.update_completed_run.assert_called_once_with(
-        db_reduction_id=job_id,
+        db_job_id=job_id,
         state=State.UNSUCCESSFUL,
         status_message=": line 1 column 2 (char 1)",
         output_files=[],
-        reduction_end=str(end),
-        reduction_start=start,
+        end=str(end),
+        start=start,
         stacktrace="",
     )
 
@@ -578,12 +578,12 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw.db_updater.update_completed_run.assert_called_once_with(
-        db_reduction_id=job_id,
+        db_job_id=job_id,
         state=State.UNSUCCESSFUL,
         status_message="TypeError!",
         output_files=[],
-        reduction_end=str(end),
-        reduction_start=start,
+        end=str(end),
+        start=start,
         stacktrace="",
     )
 
@@ -609,12 +609,12 @@ def test_process_job_success_raise_exception(job_watcher_maker):
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw.db_updater.update_completed_run.assert_called_once_with(
-        db_reduction_id=job_id,
+        db_job_id=job_id,
         state=State.UNSUCCESSFUL,
         status_message="Exception raised!",
         output_files=[],
-        reduction_end=str(end),
-        reduction_start=start,
+        end=str(end),
+        start=start,
         stacktrace="",
     )
 

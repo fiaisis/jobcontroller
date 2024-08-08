@@ -4,7 +4,8 @@ Main file containing the entry point of the JobWatcher application
 
 import os
 
-from jobwatcher.database.db_updater import DBUpdater
+from db.utils.db_updater import DBUpdater
+
 from jobwatcher.job_watcher import JobWatcher
 from jobwatcher.utils import load_kubernetes_config
 

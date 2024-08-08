@@ -1,5 +1,5 @@
 """
-Contains the functions for acquiring a script for the reduction workflow
+Contains the functions for acquiring a script for the job workflow
 """
 
 from http import HTTPStatus
@@ -7,13 +7,13 @@ from http import HTTPStatus
 import requests
 
 
-def acquire_script(fia_api_host: str, reduction_id: int, instrument: str) -> tuple[str, str]:
+def acquire_script(fia_api_host: str, job_id: int, instrument: str) -> tuple[str, str]:
     """
-    Given the FIA-API host, reduction_id, and instrument, return the script object required for reduction
+    Given the FIA-API host, job_id, and instrument, return the script object required for reduction
     :return: Script, the script for the reduction
     """
     response = requests.get(
-        f"http://{fia_api_host}/instrument/{instrument}/script?reduction_id={reduction_id}",
+        f"http://{fia_api_host}/instrument/{instrument}/script?job_id={job_id}",
         timeout=30,
     )
     if response.status_code != HTTPStatus.OK:

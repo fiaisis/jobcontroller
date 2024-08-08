@@ -216,7 +216,7 @@ class JobCreator:
         cluster_id: str,
         fs_name: str,
         ceph_mount_path: str,
-        reduction_id: int,
+        job_id: int,
         max_time_to_complete_job: int,
         db_ip: str,
         db_username: str,
@@ -235,7 +235,7 @@ class JobCreator:
         :param cluster_id: The cluster id for the ceph cluster to connect to
         :param fs_name: The file system name for the ceph cluster
         :param ceph_mount_path: the path on the ceph cluster to mount
-        :param reduction_id: The id used in the DB for the reduction
+        :param job_id: The id used in the DB for the reduction
         :param max_time_to_complete_job: The maximum time to allow for completion of a job in seconds
         :param db_ip: The database ip to connect to
         :param db_username: the database username to use to connect
@@ -376,7 +376,7 @@ class JobCreator:
         job_metadata = client.V1ObjectMeta(
             name=job_name,
             annotations={
-                "reduction-id": str(reduction_id),
+                "job-id": str(job_id),
                 "pvs": str(pv_names),
                 "pvcs": str(pvc_names),
                 "kubectl.kubernetes.io/default-container": main_container.name,

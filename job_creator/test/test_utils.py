@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 from unittest import mock
 
@@ -6,7 +7,8 @@ import pytest
 from kubernetes.config import ConfigException
 
 from jobcreator.utils import (
-    ensure_ceph_path_exists,
+    create_ceph_mount_path_simple,
+    ensure_ceph_path_exists_autoreduction,
     find_sha256_of_image,
     get_org_image_name_and_version_from_image_path,
     get_sha256_using_image_from_ghcr,
@@ -48,7 +50,7 @@ def test_not_in_cluster_and_not_in_env_grab_kubeconfig_from_default_location(kub
 def test_ensure_ceph_path_exists():
     initial_path = Path("/tmp/ceph/mari/RBNumber/RB99999999/autoreduced/")  # noqa: S108
 
-    end_path = ensure_ceph_path_exists(initial_path)
+    end_path = ensure_ceph_path_exists_autoreduction(initial_path)
 
     assert end_path == Path("/tmp/ceph/mari/RBNumber/unknown/autoreduced")  # noqa: S108
     os.removedirs("/tmp/ceph/mari/RBNumber/unknown/autoreduced")  # noqa: S108
@@ -127,3 +129,45 @@ def test_get_org_image_name_and_version_from_image_path(https):
     assert org_name == "fiaisis"
     assert image_name == "mantid"
     assert version == "6.9.1"
+
+
+def test_create_ceph_mount_path_simple_user_number():
+    user_number = random.randint(0, 999999)  # noqa: S311
+
+    return_value = create_ceph_mount_path_simple(
+        user_number=str(user_number), local_ceph_path=Path.cwd() / "test_files"
+    )
+
+    assert return_value == Path(f"/isis/instrument/GENERIC/autoreduce/UserNumbers/{user_number}")
+
+
+def test_create_ceph_mount_path_simple_experiment_number():
+    experiment_number = random.randint(0, 999999)  # noqa: S311
+
+    return_value = create_ceph_mount_path_simple(
+        experiment_number=str(experiment_number), local_ceph_path=Path.cwd() / "test_files"
+    )
+
+    assert return_value == Path(f"/isis/instrument/GENERIC/autoreduce/ExperimentNumbers/{experiment_number}")
+
+
+def test_create_ceph_mount_path_simple_both():
+    experiment_number = random.randint(0, 999999)  # noqa: S311
+    user_number = random.randint(0, 999999)  # noqa: S311
+
+    with pytest.raises(ValueError):  # noqa: PT011
+        create_ceph_mount_path_simple(
+            user_number=str(user_number),
+            experiment_number=str(experiment_number),
+            local_ceph_path=Path.cwd() / "test_files",
+        )
+
+
+def test_create_ceph_mount_path_simple_user_number_with_defined_mount_path():
+    user_number = random.randint(0, 999999)  # noqa: S311
+
+    return_value = create_ceph_mount_path_simple(
+        user_number=str(user_number), mount_path="/crazy/mount/path", local_ceph_path=Path.cwd() / "test_files"
+    )
+
+    assert return_value == Path(f"/crazy/mount/path/GENERIC/autoreduce/UserNumbers/{user_number}")

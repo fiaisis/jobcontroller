@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger("jobcreator")
 
 
-def create_ceph_path(instrument_name: str, rb_number: str) -> Path:
+def create_ceph_path_autoreduction(instrument_name: str, rb_number: str) -> Path:
     """
     Create the path that the files should store outputs in on CEPH
     :param instrument_name: The name of the instrument that the file is from
@@ -59,7 +59,38 @@ def load_kubernetes_config() -> None:
             config.load_kube_config()
 
 
-def ensure_ceph_path_exists(ceph_path: Path) -> Path:
+def create_ceph_mount_path_simple(
+    user_number: str | None = None,
+    experiment_number: str | None = None,
+    mount_path: str = "/isis/instrument",
+    local_ceph_path: str = "/ceph",
+) -> Path:
+    """
+    Creates the ceph mount for the job to output to
+    :param user_number: str, The user number that owns the job
+    :param experiment_number: str, The experiment number that owns the job
+    :param mount_path: str, the path that should be pointed to by default, before RBNumber, and Instrument specific
+    directories.
+    :param local_ceph_path: str, the path that we expect Ceph to be present locally, by default it's /ceph, mostly for
+    testing.
+    :return: str, the path that was created for the mount
+    """
+    initial_path = Path(local_ceph_path) / "GENERIC" / "autoreduce"
+    if user_number is not None and experiment_number is None:
+        ceph_path = initial_path / "UserNumbers" / user_number
+    elif experiment_number is not None and user_number is None:
+        ceph_path = initial_path / "ExperimentNumbers" / experiment_number
+    else:
+        raise ValueError("Both user_number and experiment_number cannot be defined, but one must be.")
+    if not ceph_path.exists():
+        logger.info("Attempting to create ceph path: %s", str(ceph_path))
+        ceph_path.mkdir(parents=True, exist_ok=True)
+    # There is an assumption that the ceph_path will have /ceph at the start that needs to be removed
+    ceph_path = ceph_path.relative_to(local_ceph_path)
+    return Path(mount_path) / ceph_path
+
+
+def ensure_ceph_path_exists_autoreduction(ceph_path: Path) -> Path:
     """
     Takes a path that is intended to be on ceph and ensures that it will be correct for what we should mount and
     apply output to.
@@ -81,7 +112,9 @@ def ensure_ceph_path_exists(ceph_path: Path) -> Path:
     return ceph_path
 
 
-def create_ceph_mount_path(instrument_name: str, rb_number: str, mount_path: str = "/isis/instrument") -> Path:
+def create_ceph_mount_path_autoreduction(
+    instrument_name: str, rb_number: str, mount_path: str = "/isis/instrument"
+) -> Path:
     """
     Creates the ceph mount for the job to output to
     :param instrument_name: str, name of the instrument
@@ -90,8 +123,8 @@ def create_ceph_mount_path(instrument_name: str, rb_number: str, mount_path: str
     directories.
     :return: str, the path that was created for the mount
     """
-    ceph_path = create_ceph_path(instrument_name, rb_number)
-    ceph_path = ensure_ceph_path_exists(ceph_path)
+    ceph_path = create_ceph_path_autoreduction(instrument_name, rb_number)
+    ceph_path = ensure_ceph_path_exists_autoreduction(ceph_path)
     # There is an assumption that the ceph_path will have /ceph at the start that needs to be removed
     ceph_path = ceph_path.relative_to("/ceph")
     return Path(mount_path) / ceph_path
