@@ -5,8 +5,7 @@ version = "0.0.1"
 requires-python = ">= 3.11"
 dependencies = [
     "kubernetes==29.0.0",
-    "psycopg2-binary==2.9.9",
-    "SQLAlchemy==2.0.30",
+    "db@git+https://github.com/fiaisis/db",
 ]
 
 [project.urls]
@@ -32,7 +31,7 @@ test = [
 ]
 
 [tool.setuptools]
-packages = ["jobwatcher", "jobwatcher.database"]
+packages = ["jobwatcher"]
 
 [tool.ruff]
 line-length = 120

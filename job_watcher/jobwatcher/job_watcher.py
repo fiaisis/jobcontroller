@@ -9,11 +9,11 @@ from json import JSONDecodeError
 from time import sleep
 from typing import Any
 
+from db.data_models import State
+from db.utils.db_updater import DBUpdater
 from kubernetes import client  # type: ignore[import-untyped]
 from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
 
-from jobwatcher.database.db_updater import DBUpdater
-from jobwatcher.database.state_enum import State
 from jobwatcher.utils import logger
 
 
@@ -75,7 +75,7 @@ def _find_latest_raised_error_and_stacktrace_from_reversed_logs(reversed_logs: l
     """
     Find the stacktrace in the logs and then return that as a string, find the line that has the error in it and
     also return that
-    :param reverse_logs: list[str], a list of logs in reverse real order so the most recent is at pos 0.
+    :param reversed_logs: list[str], a list of logs in reverse real order so the most recent is at pos 0.
     :return: Tuple[str, str], pos1 contains the error_line, pos2 contains the stacktrace from the logs if one exists
     """
     line_to_record: str = str(reversed_logs[0])  # Last line in the logs (already reversed)
@@ -99,7 +99,7 @@ def _find_latest_raised_error_and_stacktrace_from_reversed_logs(reversed_logs: l
     return line_to_record, stacktrace
 
 
-class JobWatcher:  # pylint: disable=too-many-instance-attributes
+class JobWatcher:
     """
     Watch a kubernetes job, and when it ends update the DB with the results, and exit.
     """
@@ -295,15 +295,15 @@ class JobWatcher:  # pylint: disable=too-many-instance-attributes
             raise AttributeError("Pod and job must be set in the JobWatcher before calling this function.")
         raised_error, stacktrace = self._find_latest_raised_error_and_stacktrace()
         logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
-        reduction_id = self.job.metadata.annotations["reduction-id"]
+        job_id = self.job.metadata.annotations["job-id"]
         start, end = self._find_start_and_end_of_pod(self.pod)
         self.db_updater.update_completed_run(
-            db_reduction_id=reduction_id,
+            db_job_id=job_id,
             state=State(State.ERROR),
             status_message=raised_error,
             output_files=[],
-            reduction_end=str(end),
-            reduction_start=start,
+            end=str(end),
+            start=start,
             stacktrace=stacktrace,
         )
 
@@ -315,7 +315,7 @@ class JobWatcher:  # pylint: disable=too-many-instance-attributes
         if self.job is None:
             raise AttributeError("Job must be set in the JobWatcher before calling this function.")
         job_name = self.job.metadata.name
-        reduction_id = self.job.metadata.annotations.get("reduction-id")
+        job_id = self.job.metadata.annotations.get("job-id")
         if self.pod is None:
             raise AttributeError(
                 f"Pod name can't be None, {job_name} name and {self.namespace} "
@@ -348,7 +348,7 @@ class JobWatcher:  # pylint: disable=too-many-instance-attributes
                 "status_message": f"{exception!s}",
                 "stacktrace": "",
             }
-        except Exception as exception:  # pylint:disable=broad-exception-caught
+        except Exception as exception:
             logger.error("There was a problem recovering the job output")
             logger.exception(exception)
             job_output = {
@@ -365,12 +365,12 @@ class JobWatcher:  # pylint: disable=too-many-instance-attributes
         output_files = job_output.get("output_files", [])
         start, end = self._find_start_and_end_of_pod(self.pod)
         self.db_updater.update_completed_run(
-            db_reduction_id=reduction_id,
+            db_job_id=job_id,
             state=State[status.upper()],
             status_message=status_message,
             output_files=output_files,
-            reduction_end=str(end),
-            reduction_start=start,
+            end=str(end),
+            start=start,
             stacktrace=stacktrace,
         )
 

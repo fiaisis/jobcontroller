@@ -303,7 +303,7 @@ def test_jobcreator_spawn_job_dev_mode_false(
         call(
             name=job_name,
             annotations={
-                "reduction-id": str(reduction_id),
+                "job-id": str(reduction_id),
                 "pvs": str([setup_archive_pv.return_value, setup_ceph_pv.return_value, setup_extras_pv.return_value]),
                 "pvcs": str(
                     [setup_archive_pvc.return_value, setup_ceph_pvc.return_value, setup_extras_pvc.return_value],
