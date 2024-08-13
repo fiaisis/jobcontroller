@@ -7,6 +7,7 @@ import pytest
 from kubernetes.config import ConfigException
 
 from jobcreator.utils import (
+    create_ceph_mount_path_autoreduction,
     create_ceph_mount_path_simple,
     ensure_ceph_path_exists_autoreduction,
     find_sha256_of_image,
@@ -171,3 +172,16 @@ def test_create_ceph_mount_path_simple_user_number_with_defined_mount_path():
     )
 
     assert return_value == Path(f"/crazy/mount/path/GENERIC/autoreduce/UserNumbers/{user_number}")
+
+
+def test_create_ceph_mount_path_autoreduction():
+    instrument_name = "test_instrument"
+    rb_number = random.randint(0, 999999)  # noqa: S311
+    mount_path = "/crazy/mount/path"
+
+    with mock.patch("jobcreator.utils.ensure_ceph_path_exists_autoreduction") as mock_func:
+        mock_func.return_value = Path(f"/ceph/{instrument_name}/RBNumber/RB{rb_number}/autoreduced")
+        return_value = create_ceph_mount_path_autoreduction(instrument_name, rb_number, mount_path)
+
+    mock_func.assert_called_once_with(Path(f"/ceph/{instrument_name}/RBNumber/RB{rb_number}/autoreduced"))
+    assert return_value == Path(f"/crazy/mount/path/{instrument_name}/RBNumber/RB{rb_number}/autoreduced")
