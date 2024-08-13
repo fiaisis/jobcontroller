@@ -124,7 +124,7 @@ def process_simple_message(message: dict[str, Any]) -> None:
             manila_share_id=MANILA_SHARE_ID,
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
         )
-    except Exception as exception:  # pylint: disable=broad-exception-caught
+    except Exception as exception:
         logger.exception(exception)
 
 
@@ -170,11 +170,11 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             manila_share_id=MANILA_SHARE_ID,
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
         )
-    except Exception as exception:  # pylint: disable=broad-exception-caught
+    except Exception as exception:
         logger.exception(exception)
 
 
-def process_autoreduction_message(message: dict[str, Any]) -> None:  # pylint: disable=too-many-locals
+def process_autoreduction_message(message: dict[str, Any]) -> None:
     """
     Request that the k8s api spawns a job
     :param message: dict, the message is a dictionary containing the needed information for spawning a pod
@@ -237,7 +237,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:  # pylint: d
             manila_share_id=MANILA_SHARE_ID,
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
         )
-    except Exception as exception:  # pylint: disable=broad-exception-caught
+    except Exception as exception:
         logger.exception(exception)
 
 

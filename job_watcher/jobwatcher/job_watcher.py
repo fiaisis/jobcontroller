@@ -99,7 +99,7 @@ def _find_latest_raised_error_and_stacktrace_from_reversed_logs(reversed_logs: l
     return line_to_record, stacktrace
 
 
-class JobWatcher:  # pylint: disable=too-many-instance-attributes
+class JobWatcher:
     """
     Watch a kubernetes job, and when it ends update the DB with the results, and exit.
     """
@@ -348,7 +348,7 @@ class JobWatcher:  # pylint: disable=too-many-instance-attributes
                 "status_message": f"{exception!s}",
                 "stacktrace": "",
             }
-        except Exception as exception:  # pylint:disable=broad-exception-caught
+        except Exception as exception:
             logger.error("There was a problem recovering the job output")
             logger.exception(exception)
             job_output = {

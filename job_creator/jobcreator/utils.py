@@ -186,6 +186,6 @@ def find_sha256_of_image(image: str) -> str:
         version_to_use = get_sha256_using_image_from_ghcr(user_image, version)
         logger.info("Found sha256 tag for %s: %s", user_image, version_to_use)
         return f"ghcr.io/{org_name}/{image_name}@sha256:{version_to_use}"
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.warning(str(e))
         return image
