@@ -23,7 +23,7 @@ DB_UPDATER = mock.MagicMock()
 MAX_TIME_TO_COMPLETE = mock.MagicMock()
 
 
-@pytest.fixture()
+@pytest.fixture
 def job_watcher_maker():
     with (
         mock.patch("jobwatcher.job_watcher._find_pod_from_partial_name") as find_pod_from_partial_name_mock,
@@ -414,7 +414,7 @@ def test_find_start_and_end_of_pod(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_find_start_and_end_of_pod_terminated(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
     pod = mock.MagicMock()
     jw.get_container_status = mock.MagicMock()
 
@@ -528,7 +528,7 @@ def test_process_job_success_job_is_none(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_success_raise_json_decode_error(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
     job_id = mock.MagicMock()
@@ -559,7 +559,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_success_raise_type_error(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
     job_id = mock.MagicMock()
@@ -590,7 +590,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_success_raise_exception(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
     job_id = mock.MagicMock()
@@ -674,7 +674,7 @@ def test_find_latest_raised_error_and_stacktrace_from_reversed_logs():
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_find_latest_raised_error_and_stacktrace(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
 
     with (
         mock.patch(
