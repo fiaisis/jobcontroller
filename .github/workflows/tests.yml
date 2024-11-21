@@ -23,7 +23,7 @@ jobs:
         run: pytest ./job_creator --random-order --random-order-bucket=global --ignore=test/database/test_db_updater_integration.py --cov --cov-report=xml
 
       - name: Upload coverage
-        uses: codecov/codecov-action@125fc84a9a348dbcf27191600683ec096ec9021c # v4.4.1
+        uses: codecov/codecov-action@d168679d447a7d9f9917d4b26caf2cfbf080cfb4 # v5.0.6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -48,6 +48,6 @@ jobs:
         run: pytest ./job_watcher --random-order --random-order-bucket=global --ignore=test/database/test_db_updater_integration.py --cov --cov-report=xml
 
       - name: Upload coverage
-        uses: codecov/codecov-action@125fc84a9a348dbcf27191600683ec096ec9021c # v4.4.1
+        uses: codecov/codecov-action@d168679d447a7d9f9917d4b26caf2cfbf080cfb4 # v5.0.6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
