@@ -35,7 +35,7 @@ jobs:
 
     - name: Build and push jobwatcher Docker image
       id: jobwatcher_build
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         file: ./container/job_watcher.Dockerfile
         push: true
@@ -50,19 +50,19 @@ jobs:
 
     - name: Build and push jobcreator Docker image
       id: jobcreator_build
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         file: ./container/job_creator.Dockerfile
         push: true
         tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/jobcreator:${{ github.sha }}
 
     - name: Edit the YAML jobcreator.yml file for staging for jobwatcher
-      uses: mikefarah/yq@v4.44.1
+      uses: mikefarah/yq@v4.44.5
       with:
         cmd: yq e -i '.spec.template.spec.containers[] |= (select(.name == "jobcreator") | .env[] |= select(.name == "WATCHER_SHA").value = "${{ steps.remove_sha256_watcher.outputs.digest }}")' './components/jobcreator/envs/staging/jobcreator.yml'
 
     - name: Edit the YAML jobcreator.yml file for staging for jobcreator
-      uses: mikefarah/yq@v4.44.1
+      uses: mikefarah/yq@v4.44.5
       with:
         cmd: yq e -i '.spec.template.spec.containers[] |= select(.name == "jobcreator").image = "ghcr.io/fiaisis/jobcreator@${{ steps.jobcreator_build.outputs.digest }}"' './components/jobcreator/envs/staging/jobcreator.yml'  
 
