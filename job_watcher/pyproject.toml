@@ -41,6 +41,7 @@ select = [
     "F",     # flake8 - Basic initial rules
     "E",     # pycodestyle (Error) - pep8 compliance
     "W",     # pycodestyle (Warning) - pep8 compliance
+    "D",     # pydocstyle - Enforce docstrings present
     "C90",   # mccabe - flags extremely complex functions
     "I",     # isort - Sort imports and flag missing imports
     "N",     # pep8-naming - Ensures pep8 compliance for naming
