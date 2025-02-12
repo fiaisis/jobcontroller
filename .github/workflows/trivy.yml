@@ -28,7 +28,7 @@ jobs:
             dockerfile: job_watcher.Dockerfile
 
       fail-fast: false
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
