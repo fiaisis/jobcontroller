@@ -717,7 +717,7 @@ def test_handle_logs_output_only_1_line(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     DB_UPDATER.reset_mock()
 
-    with (mock.patch("job_watcher.client") as client):
+    with (mock.patch("jobwatcher.job_watcher.client") as client):
         client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = \
           '{"status": "Successful", "output_files": "Great files, the best!"}'
         jw.process_job_success()
@@ -743,7 +743,7 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     DB_UPDATER.reset_mock()
 
-    with (mock.patch("job_watcher.client") as client):
+    with (mock.patch("jobwatcher.job_watcher.client") as client):
         client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = \
             ('Crazy python script logs here!\n{"status": "Successful", "output_files": "Great files, the best!"}\n'
              'Not sure why K8s adds me here!, only sometimes!')
