@@ -174,9 +174,7 @@ def test_update_current_container_info_partial_name_no_pod(job_watcher_maker):
 
     with (
         pytest.raises(ValueError),  # noqa: PT011
-        mock.patch(
-            "job_watcher._find_pod_from_partial_name", return_value=None
-        ) as _find_pod_from_partial_name,
+        mock.patch("job_watcher._find_pod_from_partial_name", return_value=None) as _find_pod_from_partial_name,
         mock.patch("job_watcher.client"),
     ):
         jw.update_current_container_info(partial_name)
