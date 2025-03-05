@@ -702,3 +702,56 @@ def test_find_latest_raised_error_and_stacktrace_raises_error_on_pod_is_none(job
 
     with pytest.raises(AttributeError):
         jw._find_latest_raised_error_and_stacktrace()
+
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_handle_logs_output_only_1_line(job_watcher_maker):
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
+    start = mock.MagicMock()
+    end = mock.MagicMock()
+    job_id = mock.MagicMock()
+    jw.job.metadata.annotations.get.return_value = job_id
+    jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
+    DB_UPDATER.reset_mock()
+
+    with (mock.patch("job_watcher.client") as client):
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = \
+          '{"status": "Successful", "output_files": "Great files, the best!"}'
+        jw.process_job_success()
+
+    jw.db_updater.update_completed_run.assert_called_once_with(
+        db_job_id=job_id,
+        state=State.SUCCESSFUL,
+        status_message="",
+        output_files="Great files, the best!",
+        end=str(end),
+        start=start,
+        stacktrace="",
+    )
+
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_handle_logs_output_2_lines(job_watcher_maker):
+    jw, _, _find_pod_from_partial_name = job_watcher_maker
+    start = mock.MagicMock()
+    end = mock.MagicMock()
+    job_id = mock.MagicMock()
+    jw.job.metadata.annotations.get.return_value = job_id
+    jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
+    DB_UPDATER.reset_mock()
+
+    with (mock.patch("job_watcher.client") as client):
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = \
+            ('Crazy python script logs here!\n{"status": "Successful", "output_files": "Great files, the best!"}\n'
+             'Not sure why K8s adds me here!, only sometimes!')
+        jw.process_job_success()
+
+    jw.db_updater.update_completed_run.assert_called_once_with(
+        db_job_id=job_id,
+        state=State.SUCCESSFUL,
+        status_message="",
+        output_files="Great files, the best!",
+        end=str(end),
+        start=start,
+        stacktrace="",
+    )
