@@ -7,7 +7,8 @@ from unittest.mock import call
 
 import pytest
 from db.data_models import State
-from job_watcher import (
+
+from jobwatcher.job_watcher import (
     JobWatcher,
     _find_latest_raised_error_and_stacktrace_from_reversed_logs,
     _find_pod_from_partial_name,
@@ -25,8 +26,8 @@ MAX_TIME_TO_COMPLETE = mock.MagicMock()
 @pytest.fixture
 def job_watcher_maker():
     with (
-        mock.patch("job_watcher._find_pod_from_partial_name") as find_pod_from_partial_name_mock,
-        mock.patch("job_watcher.client") as client,
+        mock.patch("jobwatcher.job_watcher._find_pod_from_partial_name") as find_pod_from_partial_name_mock,
+        mock.patch("jobwatcher.job_watcher.client") as client,
     ):
         jw = JobWatcher(
             JOB_NAME,
@@ -44,7 +45,7 @@ def test_clean_up_pvcs_for_job():
     pvcs = [str(mock.MagicMock()), str(mock.MagicMock()), str(mock.MagicMock())]
     job.metadata.annotations = {"pvcs": str(pvcs)}
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         clean_up_pvcs_for_job(job, namespace)
 
     for pvc in pvcs:
@@ -54,7 +55,7 @@ def test_clean_up_pvcs_for_job():
         )
 
 
-@mock.patch("job_watcher.client")
+@mock.patch("jobwatcher.job_watcher.client")
 def test_clean_up_pvs_for_job(client):
     job = mock.MagicMock()
     pvs = [str(mock.MagicMock()), str(mock.MagicMock()), str(mock.MagicMock())]
@@ -66,7 +67,7 @@ def test_clean_up_pvs_for_job(client):
         assert call(pv) in client.CoreV1Api.return_value.delete_persistent_volume.call_args_list
 
 
-@mock.patch("job_watcher.client")
+@mock.patch("jobwatcher.job_watcher.client")
 def test_find_pod_from_partial_name(client):
     partial_name = str(mock.MagicMock())
     namespace = str(mock.MagicMock())
@@ -79,8 +80,8 @@ def test_find_pod_from_partial_name(client):
     client.CoreV1Api.return_value.list_namespaced_pod.assert_called_once_with(namespace=namespace)
 
 
-@mock.patch("job_watcher._find_pod_from_partial_name")
-@mock.patch("job_watcher.client")
+@mock.patch("jobwatcher.job_watcher._find_pod_from_partial_name")
+@mock.patch("jobwatcher.job_watcher.client")
 def test_jobwatcher_init(client, find_pod_from_partial_name):
     job_name = str(mock.MagicMock())
     partial_pod_name = str(mock.MagicMock())
@@ -133,7 +134,7 @@ def test_update_current_container_info_no_name_provided(job_watcher_maker):
     jw, _, __ = job_watcher_maker
     jw.pod_name = None
 
-    with pytest.raises(ValueError), mock.patch("job_watcher.client"):  # noqa: PT011
+    with pytest.raises(ValueError), mock.patch("jobwatcher.job_watcher.client"):  # noqa: PT011
         jw.update_current_container_info()
 
 
@@ -143,7 +144,7 @@ def test_update_current_container_info_full_name(job_watcher_maker):
     pod_name = str(mock.MagicMock())
     jw.pod_name = pod_name
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         jw.update_current_container_info()
 
     client.CoreV1Api.return_value.read_namespaced_pod.assert_called_once_with(name=pod_name, namespace=jw.namespace)
@@ -157,8 +158,8 @@ def test_update_current_container_info_partial_name(job_watcher_maker):
     jw.pod_name = None
 
     with (
-        mock.patch("job_watcher._find_pod_from_partial_name") as _find_pod_from_partial_name,
-        mock.patch("job_watcher.client"),
+        mock.patch("jobwatcher.job_watcher._find_pod_from_partial_name") as _find_pod_from_partial_name,
+        mock.patch("jobwatcher.job_watcher.client"),
     ):
         jw.update_current_container_info(partial_pod_name)
 
@@ -174,8 +175,10 @@ def test_update_current_container_info_partial_name_no_pod(job_watcher_maker):
 
     with (
         pytest.raises(ValueError),  # noqa: PT011
-        mock.patch("job_watcher._find_pod_from_partial_name", return_value=None) as _find_pod_from_partial_name,
-        mock.patch("job_watcher.client"),
+        mock.patch(
+            "jobwatcher.job_watcher._find_pod_from_partial_name", return_value=None
+        ) as _find_pod_from_partial_name,
+        mock.patch("jobwatcher.job_watcher.client"),
     ):
         jw.update_current_container_info(partial_name)
 
@@ -368,7 +371,7 @@ def test_check_for_pod_stalled_pod_is_stalled_for_30_minutes(job_watcher_maker):
     jw.pod.metadata.creation_timestamp = datetime.now(UTC) - timedelta(seconds=60 * 35)
     jw.max_time_to_complete = 99999999
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = ""
         assert jw.check_for_pod_stalled() is True
 
@@ -400,7 +403,7 @@ def test_find_start_and_end_of_pod(job_watcher_maker):
     jw.get_container_status = mock.MagicMock()
     jw.get_container_status.return_value.state.terminated = None
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         assert jw._find_start_and_end_of_pod(pod) == (
             client.CoreV1Api.return_value.read_namespaced_pod.return_value.status.start_time,
             None,
@@ -415,7 +418,7 @@ def test_find_start_and_end_of_pod_terminated(job_watcher_maker):
     pod = mock.MagicMock()
     jw.get_container_status = mock.MagicMock()
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         assert jw._find_start_and_end_of_pod(pod) == (
             client.CoreV1Api.return_value.read_namespaced_pod.return_value.status.start_time,
             jw.get_container_status.return_value.state.terminated.finished_at,
@@ -478,7 +481,7 @@ def test_process_job_success(job_watcher_maker):
     jw.job.metadata.annotations.get.return_value = job_id
     DB_UPDATER.reset_mock()
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         logs = """
         line 1
         line 2
@@ -536,7 +539,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
     def raise_error(name, namespace, container):
         raise JSONDecodeError("", "", 1)
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         client.CoreV1Api.return_value.read_namespaced_pod_log = mock.MagicMock(side_effect=raise_error)
         jw.process_job_success()
 
@@ -567,7 +570,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
     def raise_error(name, namespace, container):
         raise TypeError("TypeError!")
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         client.CoreV1Api.return_value.read_namespaced_pod_log = mock.MagicMock(side_effect=raise_error)
         jw.process_job_success()
 
@@ -598,7 +601,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
     def raise_error(name, namespace, container):
         raise Exception("Exception raised!")
 
-    with mock.patch("job_watcher.client") as client:
+    with mock.patch("jobwatcher.job_watcher.client") as client:
         client.CoreV1Api.return_value.read_namespaced_pod_log = mock.MagicMock(side_effect=raise_error)
         jw.process_job_success()
 
@@ -621,8 +624,8 @@ def test_cleanup_job(job_watcher_maker):
     jw, client, _find_pod_from_partial_name = job_watcher_maker
 
     with (
-        mock.patch("job_watcher.clean_up_pvs_for_job") as clean_up_pvs_for_job,
-        mock.patch("job_watcher.clean_up_pvcs_for_job") as clean_up_pvcs_for_job,
+        mock.patch("jobwatcher.job_watcher.clean_up_pvs_for_job") as clean_up_pvs_for_job,
+        mock.patch("jobwatcher.job_watcher.clean_up_pvcs_for_job") as clean_up_pvcs_for_job,
     ):
         jw.cleanup_job()
 
@@ -662,7 +665,7 @@ def test_find_latest_raised_error_and_stacktrace_from_reversed_logs():
     )
     expected_recorded_line = "AttributeError: I don't know where the gabagool is Tony"
 
-    with mock.patch("job_watcher.client"):
+    with mock.patch("jobwatcher.job_watcher.client"):
         recorded_line, stacktrace = _find_latest_raised_error_and_stacktrace_from_reversed_logs(logs)
 
     assert recorded_line == expected_recorded_line
@@ -675,9 +678,9 @@ def test_find_latest_raised_error_and_stacktrace(job_watcher_maker):
 
     with (
         mock.patch(
-            "job_watcher._find_latest_raised_error_and_stacktrace_from_reversed_logs"
+            "jobwatcher.job_watcher._find_latest_raised_error_and_stacktrace_from_reversed_logs"
         ) as return_raised_error_call,
-        mock.patch("job_watcher.client") as client,
+        mock.patch("jobwatcher.job_watcher.client") as client,
     ):
         jw._find_latest_raised_error_and_stacktrace()
 
