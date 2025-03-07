@@ -327,7 +327,9 @@ class JobWatcher:
             logs = v1_core.read_namespaced_pod_log(
                 name=self.pod.metadata.name, namespace=self.namespace, container=self.container_name
             )
-            output = logs.split("\n")[-2]  # Get second to last line (last line is empty)
+            log_lines = logs.split("\n")
+            # Get second to last line if more than one (last line is empty)
+            output = log_lines[-1] if len(log_lines) == 1 else log_lines[-2]
             logger.info("Job %s has been completed with output: %s", job_name, output)
             job_output = json.loads(output)
         except JSONDecodeError as exception:
