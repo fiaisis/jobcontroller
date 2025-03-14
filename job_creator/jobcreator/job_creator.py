@@ -218,9 +218,7 @@ class JobCreator:
         ceph_mount_path: str,
         job_id: int,
         max_time_to_complete_job: int,
-        db_ip: str,
-        db_username: str,
-        db_password: str,
+        fia_api_host: str,
         runner_image: str,
         manila_share_id: str,
         manila_share_access_id: str,
@@ -237,9 +235,7 @@ class JobCreator:
         :param ceph_mount_path: the path on the ceph cluster to mount
         :param job_id: The id used in the DB for the reduction
         :param max_time_to_complete_job: The maximum time to allow for completion of a job in seconds
-        :param db_ip: The database ip to connect to
-        :param db_username: the database username to use to connect
-        :param db_password: the database password to use to connect
+        :param fia_api_host: The fia api host for the fia cluster
         :param runner_image: the container image that has is to be used the containers have permission to use the
         directories required for outputting data.
         :param manila_share_id: The id of the manila share to mount for extras
@@ -295,9 +291,7 @@ class JobCreator:
             name="job-watcher",
             image=f"ghcr.io/fiaisis/jobwatcher@sha256:{self.watcher_sha}",
             env=[
-                client.V1EnvVar(name="DB_IP", value=db_ip),
-                client.V1EnvVar(name="DB_USERNAME", value=db_username),
-                client.V1EnvVar(name="DB_PASSWORD", value=db_password),
+                client.V1EnvVar(name="FIA_API_HOST", value=fia_api_host),
                 client.V1EnvVar(name="MAX_TIME_TO_COMPLETE_JOB", value=str(max_time_to_complete_job)),
                 client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
                 client.V1EnvVar(name="JOB_NAME", value=job_name),
