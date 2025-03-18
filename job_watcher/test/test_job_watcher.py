@@ -1,9 +1,10 @@
 import os
 import random
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 from json import JSONDecodeError
 from unittest import mock
-from unittest.mock import call
+from unittest.mock import call, patch, Mock
 
 import pytest
 
@@ -753,3 +754,82 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
         "",
         str(end),
     )
+
+
+@patch("jobwatcher.job_watcher.FIA_API_HOST", "example.com")
+@patch("jobwatcher.job_watcher.FIA_API_API_KEY", "shh")
+@patch("requests.patch")
+def test_update_job_status_success(mock_patch):
+    mock_response = Mock()
+    mock_response.status_code = HTTPStatus.OK
+    mock_patch.return_value = mock_response
+
+    JobWatcher._update_job_status(
+        job_id=1,
+        state="SUCCESSFUL",
+        status_message="Job done",
+        output_files=["file1.txt"],
+        start="2025-03-17T10:00:00Z",
+        stacktrace="",
+        end="2025-03-17T10:05:00Z",
+    )
+
+    mock_patch.assert_called_once()
+    mock_patch.assert_called_with(
+        "http://example.com/job/1",
+        json={
+            "state": "SUCCESSFUL",
+            "status_message": "Job done",
+            "output_files": ["file1.txt"],
+            "start": "2025-03-17T10:00:00Z",
+            "stacktrace": "",
+            "end": "2025-03-17T10:05:00Z",
+        },
+        headers={"Authorization": f"Bearer shh"},
+        timeout=30,
+    )
+
+
+@patch("requests.patch")
+@patch("time.sleep")
+def test_update_job_status_retry_success(mock_sleep, mock_patch):
+    mock_sleep.return_value = None
+    # First two attempts fail, third succeeds
+    mock_response_fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+    mock_response_success = Mock(status_code=HTTPStatus.OK)
+    mock_patch.side_effect = [mock_response_fail, mock_response_fail, mock_response_success]
+
+    JobWatcher._update_job_status(
+        job_id=2,
+        state="SUCCESSFUL",
+        status_message="In progress",
+        output_files=[],
+        start="2025-03-17T09:00:00Z",
+        stacktrace="",
+        end="",
+    )
+
+    assert mock_patch.call_count == 3
+    mock_sleep.assert_called_with(3 + 2)  # Should sleep after second fail (retry_attempts=2)
+
+
+@patch("requests.patch")
+@patch("time.sleep")  # Avoid sleep
+@patch("jobwatcher.job_watcher.logger.error")
+def test_update_job_status_fail(mock_logger_error, mock_sleep, mock_patch):
+    mock_response_fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+    mock_sleep.return_value = None
+    mock_patch.return_value = mock_response_fail
+
+    JobWatcher._update_job_status(
+        job_id=3,
+        state="SUCCESSFUL",
+        status_message="Error occurred",
+        output_files=[],
+        start="2025-03-17T08:00:00Z",
+        stacktrace="Traceback info",
+        end="2025-03-17T08:10:00Z",
+    )
+
+    assert mock_patch.call_count == 4  # 4 attempts
+    mock_logger_error.assert_called_once_with("Failed 3 time to contact fia api while updating job status")

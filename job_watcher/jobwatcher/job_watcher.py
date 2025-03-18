@@ -5,6 +5,8 @@ Watch a kubernetes job, and when it ends update the DB with the results, and exi
 import datetime
 import json
 import os
+import time
+from http import HTTPStatus
 from json import JSONDecodeError
 from time import sleep
 from typing import Any, Literal, cast
@@ -17,6 +19,7 @@ from jobwatcher.utils import logger
 
 StateString = Literal["SUCCESSFUL", "UNSUCCESSFUL", "ERROR", "NOT_STARTED"]
 FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
+FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY", "")
 
 
 def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
@@ -295,19 +298,26 @@ class JobWatcher:
         stacktrace: str,
         end: str,
     ) -> None:
-        requests.patch(
-            f"http://{FIA_API_HOST}/job/{job_id}",
-            json={
-                "state": state,
-                "status_message": status_message,
-                "output_files": output_files,
-                "start": start,
-                "stacktrace": stacktrace,
-                "end": end,
-            },
-            headers={"Authorization": "shh"},
-            timeout=30,
-        )
+        retry_attempts = 0
+        while retry_attempts <= 3:
+            response = requests.patch(
+                f"http://{FIA_API_HOST}/job/{job_id}",
+                json={
+                    "state": state,
+                    "status_message": status_message,
+                    "output_files": output_files,
+                    "start": start,
+                    "stacktrace": stacktrace,
+                    "end": end,
+                },
+                headers={"Authorization": f"Bearer {FIA_API_API_KEY}"},
+                timeout=30,
+            )
+            if response.status_code == HTTPStatus.OK:
+                return
+            retry_attempts += 1
+            time.sleep(3 + retry_attempts)
+        logger.error("Failed 3 time to contact fia api while updating job status")
 
     def process_job_failed(self) -> None:
         """
