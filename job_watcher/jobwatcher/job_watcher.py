@@ -5,16 +5,22 @@ Watch a kubernetes job, and when it ends update the DB with the results, and exi
 import datetime
 import json
 import os
+import sys
+import time
+from http import HTTPStatus
 from json import JSONDecodeError
 from time import sleep
-from typing import Any
+from typing import Any, Literal, cast
 
-from db.data_models import State
-from db.utils.db_updater import DBUpdater
+import requests
 from kubernetes import client  # type: ignore[import-untyped]
 from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
 
 from jobwatcher.utils import logger
+
+StateString = Literal["SUCCESSFUL", "UNSUCCESSFUL", "ERROR", "NOT_STARTED"]
+FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
+FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
 
 
 def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
@@ -109,7 +115,6 @@ class JobWatcher:
         job_name: str,
         partial_pod_name: str,
         container_name: str,
-        db_updater: DBUpdater,
         max_time_to_complete: int,
     ) -> None:
         """
@@ -117,12 +122,10 @@ class JobWatcher:
         :param job_name: str, The name of the job to be watched
         :param partial_pod_name: str, the partial name of the pod to be watched
         :param container_name: str, The name of the container you should watch
-        :param db_updater: DBUpdater, the DBUpdater to be used for updating the db based on the status of the job
         :param max_time_to_complete: int, The maximum time before we assume the job is stalled.
         :return: None
         """
         self.namespace = os.environ.get("JOB_NAMESPACE", "fia")
-        self.db_updater = db_updater
         self.max_time_to_complete = max_time_to_complete
         self.done_watching = False
         self.job_name = job_name
@@ -286,6 +289,38 @@ class JobWatcher:
         logs.reverse()
         return _find_latest_raised_error_and_stacktrace_from_reversed_logs(logs)
 
+    @staticmethod
+    def _update_job_status(
+        job_id: int,
+        state: StateString,
+        status_message: str,
+        output_files: list[str],
+        start: str,
+        stacktrace: str,
+        end: str,
+    ) -> None:
+        retry_attempts, max_attempts = 0, 3
+        while retry_attempts <= max_attempts:
+            response = requests.patch(
+                f"http://{FIA_API_HOST}/job/{job_id}",
+                json={
+                    "state": state,
+                    "status_message": status_message,
+                    "output_files": output_files,
+                    "start": start,
+                    "stacktrace": stacktrace,
+                    "end": end,
+                },
+                headers={"Authorization": f"Bearer {FIA_API_API_KEY}"},
+                timeout=30,
+            )
+            if response.status_code == HTTPStatus.OK:
+                return
+            retry_attempts += 1
+            time.sleep(3 + retry_attempts)
+        logger.error("Failed 3 time to contact fia api while updating job status")
+        sys.exit(1)
+
     def process_job_failed(self) -> None:
         """
         Process the event that failed, and notify the message broker
@@ -297,15 +332,7 @@ class JobWatcher:
         logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
         job_id = self.job.metadata.annotations["job-id"]
         start, end = self._find_start_and_end_of_pod(self.pod)
-        self.db_updater.update_completed_run(
-            db_job_id=job_id,
-            state=State(State.ERROR),
-            status_message=raised_error,
-            output_files=[],
-            end=str(end),
-            start=start,
-            stacktrace=stacktrace,
-        )
+        self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
     def process_job_success(self) -> None:
         """
@@ -336,7 +363,7 @@ class JobWatcher:
             logger.error("Last message from job is not a JSON string")
             logger.exception(exception)
             job_output = {
-                "status": "Unsuccessful",
+                "status": "UNSUCCESSFUL",
                 "output_files": [],
                 "status_message": f"{exception!s}",
                 "stacktrace": "",
@@ -345,7 +372,7 @@ class JobWatcher:
             logger.error("Last message from job is not a string: %s", str(exception))
             logger.exception(exception)
             job_output = {
-                "status": "Unsuccessful",
+                "status": "UNSUCCESSFUL",
                 "output_files": [],
                 "status_message": f"{exception!s}",
                 "stacktrace": "",
@@ -354,27 +381,19 @@ class JobWatcher:
             logger.error("There was a problem recovering the job output")
             logger.exception(exception)
             job_output = {
-                "status": "Unsuccessful",
+                "status": "UNSUCCESSFUL",
                 "output_files": [],
                 "status_message": f"{exception!s}",
                 "stacktrace": "",
             }
 
         # Grab status from output
-        status = job_output.get("status", "Unsuccessful")
+        status = cast(StateString, job_output.get("status", "UNSUCCESSFUL").upper())
         status_message = job_output.get("status_message", "")
         stacktrace = job_output.get("stacktrace", "")
         output_files = job_output.get("output_files", [])
         start, end = self._find_start_and_end_of_pod(self.pod)
-        self.db_updater.update_completed_run(
-            db_job_id=job_id,
-            state=State[status.upper()],
-            status_message=status_message,
-            output_files=output_files,
-            end=str(end),
-            start=start,
-            stacktrace=stacktrace,
-        )
+        self._update_job_status(job_id, status, status_message, output_files, str(start), stacktrace, str(end))
 
     def cleanup_job(self) -> None:
         """

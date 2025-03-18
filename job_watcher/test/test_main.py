@@ -25,13 +25,12 @@ class MainTest(unittest.TestCase):
     @mock.patch("jobwatcher.main.JobWatcher")
     @mock.patch("jobwatcher.main.load_kubernetes_config")
     def test_main(self, load_kubernetes_config, job_watcher):
-        from jobwatcher.main import DB_UPDATER, main
+        from jobwatcher.main import main
 
         main()
 
         load_kubernetes_config.assert_called_once()
         job_watcher.assert_called_once_with(
-            db_updater=DB_UPDATER,
             max_time_to_complete=int(self.max_time_to_complete_job),
             container_name=self.container_name,
             job_name=self.job_name,
