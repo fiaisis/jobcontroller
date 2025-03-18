@@ -6,7 +6,6 @@ from unittest import mock
 from unittest.mock import call
 
 import pytest
-from db.data_models import State
 
 from jobwatcher.job_watcher import (
     JobWatcher,
@@ -33,7 +32,6 @@ def job_watcher_maker():
             JOB_NAME,
             PARTIAL_POD_NAME,
             CONTAINER_NAME,
-            DB_UPDATER,
             MAX_TIME_TO_COMPLETE,
         )
         return jw, find_pod_from_partial_name_mock, client
@@ -86,12 +84,11 @@ def test_jobwatcher_init(client, find_pod_from_partial_name):
     job_name = str(mock.MagicMock())
     partial_pod_name = str(mock.MagicMock())
     container_name = str(mock.MagicMock())
-    db_updater = mock.MagicMock()
     max_time_to_complete = random.randint(1, 21000)  # noqa: S311
     namespace = str(mock.MagicMock())
     os.environ["JOB_NAMESPACE"] = namespace
 
-    jw = JobWatcher(job_name, partial_pod_name, container_name, db_updater, max_time_to_complete)
+    jw = JobWatcher(job_name, partial_pod_name, container_name, max_time_to_complete)
 
     assert jw.job_name == job_name
     assert jw.pod_name == find_pod_from_partial_name.return_value.metadata.name
@@ -99,7 +96,6 @@ def test_jobwatcher_init(client, find_pod_from_partial_name):
     assert jw.job == client.BatchV1Api.return_value.read_namespaced_job()
     assert jw.done_watching is False
     assert jw.max_time_to_complete == max_time_to_complete
-    assert jw.db_updater == db_updater
     assert jw.namespace == namespace
 
 
@@ -436,18 +432,17 @@ def test_process_job_failed(job_watcher_maker):
     start = mock.MagicMock()
     end = mock.MagicMock()
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    jw.db_updater = mock.MagicMock()
-
+    jw._update_job_status = mock.MagicMock()
     jw.process_job_failed()
 
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=jw.job.metadata.annotations["job-id"],
-        state=State(State.ERROR),
-        status_message=status_message,
-        output_files=[],
-        end=str(end),
-        start=start,
-        stacktrace=stacktrace,
+    jw._update_job_status.assert_called_once_with(
+        jw.job.metadata.annotations["job-id"],
+        "ERROR",
+        status_message,
+        [],
+        start,
+        stacktrace,
+        str(end),
     )
 
 
@@ -479,7 +474,7 @@ def test_process_job_success(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     job_id = mock.MagicMock()
     jw.job.metadata.annotations.get.return_value = job_id
-    DB_UPDATER.reset_mock()
+    jw._update_job_status = mock.MagicMock()
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
         logs = """
@@ -495,14 +490,14 @@ def test_process_job_success(job_watcher_maker):
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=job_id,
-        state=State.SUCCESSFUL,
-        status_message="status_message",
-        output_files="output_file.nxs",
-        end=str(end),
-        start=start,
-        stacktrace="",
+    jw._update_job_status.assert_called_once_with(
+        job_id,
+        "SUCCESSFUL",
+        "status_message",
+        "output_file.nxs",
+        start,
+        "",
+        str(end),
     )
 
 
@@ -534,7 +529,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
     job_id = mock.MagicMock()
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    DB_UPDATER.reset_mock()
+    jw._update_job_status = mock.MagicMock()
 
     def raise_error(name, namespace, container):
         raise JSONDecodeError("", "", 1)
@@ -546,14 +541,14 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=job_id,
-        state=State.UNSUCCESSFUL,
-        status_message=": line 1 column 2 (char 1)",
-        output_files=[],
-        end=str(end),
-        start=start,
-        stacktrace="",
+    jw._update_job_status.assert_called_once_with(
+        job_id,
+        "UNSUCCESSFUL",
+        ": line 1 column 2 (char 1)",
+        [],
+        start,
+        "",
+        str(end),
     )
 
 
@@ -565,7 +560,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
     job_id = mock.MagicMock()
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    DB_UPDATER.reset_mock()
+    jw._update_job_status = mock.MagicMock()
 
     def raise_error(name, namespace, container):
         raise TypeError("TypeError!")
@@ -577,14 +572,14 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=job_id,
-        state=State.UNSUCCESSFUL,
-        status_message="TypeError!",
-        output_files=[],
-        end=str(end),
-        start=start,
-        stacktrace="",
+    jw._update_job_status.assert_called_once_with(
+        job_id,
+        "UNSUCCESSFUL",
+        "TypeError!",
+        [],
+        start,
+        "",
+        str(end),
     )
 
 
@@ -596,7 +591,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
     job_id = mock.MagicMock()
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    DB_UPDATER.reset_mock()
+    jw._update_job_status = mock.MagicMock()
 
     def raise_error(name, namespace, container):
         raise Exception("Exception raised!")
@@ -608,14 +603,14 @@ def test_process_job_success_raise_exception(job_watcher_maker):
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
         name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=job_id,
-        state=State.UNSUCCESSFUL,
-        status_message="Exception raised!",
-        output_files=[],
-        end=str(end),
-        start=start,
-        stacktrace="",
+    jw._update_job_status.assert_called_once_with(
+        job_id,
+        "UNSUCCESSFUL",
+        "Exception raised!",
+        [],
+        start,
+        "",
+        str(end),
     )
 
 
@@ -715,22 +710,21 @@ def test_handle_logs_output_only_1_line(job_watcher_maker):
     job_id = mock.MagicMock()
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    DB_UPDATER.reset_mock()
-
+    jw._update_job_status = mock.MagicMock()
     with mock.patch("jobwatcher.job_watcher.client") as client:
         client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = (
             '{"status": "Successful", "output_files": "Great files, the best!"}'
         )
         jw.process_job_success()
 
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=job_id,
-        state=State.SUCCESSFUL,
-        status_message="",
-        output_files="Great files, the best!",
-        end=str(end),
-        start=start,
-        stacktrace="",
+    jw._update_job_status.assert_called_once_with(
+        job_id,
+        "SUCCESSFUL",
+        "",
+        "Great files, the best!",
+        start,
+        "",
+        str(end),
     )
 
 
@@ -742,8 +736,7 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
     job_id = mock.MagicMock()
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    DB_UPDATER.reset_mock()
-
+    jw._update_job_status = mock.MagicMock()
     with mock.patch("jobwatcher.job_watcher.client") as client:
         client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = (
             'Crazy python script logs here!\n{"status": "Successful", "output_files": "Great files, the best!"}\n'
@@ -751,12 +744,12 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
         )
         jw.process_job_success()
 
-    jw.db_updater.update_completed_run.assert_called_once_with(
-        db_job_id=job_id,
-        state=State.SUCCESSFUL,
-        status_message="",
-        output_files="Great files, the best!",
-        end=str(end),
-        start=start,
-        stacktrace="",
+    jw._update_job_status.assert_called_once_with(
+        job_id,
+        "SUCCESSFUL",
+        "",
+        "Great files, the best!",
+        start,
+        "",
+        str(end),
     )
