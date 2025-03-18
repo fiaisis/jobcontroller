@@ -294,7 +294,7 @@ class JobWatcher:
         state: StateString,
         status_message: str,
         output_files: list[str],
-        start: Any,
+        start: str,
         stacktrace: str,
         end: str,
     ) -> None:
@@ -302,7 +302,7 @@ class JobWatcher:
         while retry_attempts <= max_attempts:
             response = requests.patch(
                 f"http://{FIA_API_HOST}/job/{job_id}",
-                data={
+                json={
                     "state": state,
                     "status_message": status_message,
                     "output_files": output_files,
@@ -330,7 +330,7 @@ class JobWatcher:
         logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
         job_id = self.job.metadata.annotations["job-id"]
         start, end = self._find_start_and_end_of_pod(self.pod)
-        self._update_job_status(job_id, "ERROR", raised_error, [], start, stacktrace, str(end))
+        self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
     def process_job_success(self) -> None:
         """
@@ -391,7 +391,7 @@ class JobWatcher:
         stacktrace = job_output.get("stacktrace", "")
         output_files = job_output.get("output_files", [])
         start, end = self._find_start_and_end_of_pod(self.pod)
-        self._update_job_status(job_id, status, status_message, output_files, start, stacktrace, str(end))
+        self._update_job_status(job_id, status, status_message, output_files, str(start), stacktrace, str(end))
 
     def cleanup_job(self) -> None:
         """

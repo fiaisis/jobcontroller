@@ -441,7 +441,7 @@ def test_process_job_failed(job_watcher_maker):
         "ERROR",
         status_message,
         [],
-        start,
+        str(start),
         stacktrace,
         str(end),
     )
@@ -496,7 +496,7 @@ def test_process_job_success(job_watcher_maker):
         "SUCCESSFUL",
         "status_message",
         "output_file.nxs",
-        start,
+        str(start),
         "",
         str(end),
     )
@@ -547,7 +547,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
         "UNSUCCESSFUL",
         ": line 1 column 2 (char 1)",
         [],
-        start,
+        str(start),
         "",
         str(end),
     )
@@ -578,7 +578,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
         "UNSUCCESSFUL",
         "TypeError!",
         [],
-        start,
+        str(start),
         "",
         str(end),
     )
@@ -609,7 +609,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
         "UNSUCCESSFUL",
         "Exception raised!",
         [],
-        start,
+        str(start),
         "",
         str(end),
     )
@@ -723,7 +723,7 @@ def test_handle_logs_output_only_1_line(job_watcher_maker):
         "SUCCESSFUL",
         "",
         "Great files, the best!",
-        start,
+        str(start),
         "",
         str(end),
     )
@@ -750,7 +750,7 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
         "SUCCESSFUL",
         "",
         "Great files, the best!",
-        start,
+        str(start),
         "",
         str(end),
     )
@@ -777,7 +777,7 @@ def test_update_job_status_success(mock_patch):
     mock_patch.assert_called_once()
     mock_patch.assert_called_with(
         "http://example.com/job/1",
-        data={
+        json={
             "state": "SUCCESSFUL",
             "status_message": "Job done",
             "output_files": ["file1.txt"],
