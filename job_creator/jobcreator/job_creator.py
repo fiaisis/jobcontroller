@@ -237,6 +237,7 @@ class JobCreator:
         :param job_id: The id used in the DB for the reduction
         :param max_time_to_complete_job: The maximum time to allow for completion of a job in seconds
         :param fia_api_host: The fia api host for the fia cluster
+        :param fia_api_api_key: The fia api key
         :param runner_image: the container image that has is to be used the containers have permission to use the
         directories required for outputting data.
         :param manila_share_id: The id of the manila share to mount for extras
