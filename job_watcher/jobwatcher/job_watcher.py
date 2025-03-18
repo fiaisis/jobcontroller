@@ -20,7 +20,7 @@ from jobwatcher.utils import logger
 
 StateString = Literal["SUCCESSFUL", "UNSUCCESSFUL", "ERROR", "NOT_STARTED"]
 FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
-FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY", "")
+FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
 
 
 def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
