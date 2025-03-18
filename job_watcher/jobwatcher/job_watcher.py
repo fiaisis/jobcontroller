@@ -298,8 +298,8 @@ class JobWatcher:
         stacktrace: str,
         end: str,
     ) -> None:
-        retry_attempts = 0
-        while retry_attempts <= 3:
+        retry_attempts, max_attempts = 0, 3
+        while retry_attempts <= max_attempts:
             response = requests.patch(
                 f"http://{FIA_API_HOST}/job/{job_id}",
                 json={
