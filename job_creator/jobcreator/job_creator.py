@@ -219,6 +219,7 @@ class JobCreator:
         job_id: int,
         max_time_to_complete_job: int,
         fia_api_host: str,
+        fia_api_api_key: str,
         runner_image: str,
         manila_share_id: str,
         manila_share_access_id: str,
@@ -292,6 +293,7 @@ class JobCreator:
             image=f"ghcr.io/fiaisis/jobwatcher@sha256:{self.watcher_sha}",
             env=[
                 client.V1EnvVar(name="FIA_API_HOST", value=fia_api_host),
+                client.V1EnvVar(name="FIA_API_API_KEY", value=fia_api_api_key),
                 client.V1EnvVar(name="MAX_TIME_TO_COMPLETE_JOB", value=str(max_time_to_complete_job)),
                 client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
                 client.V1EnvVar(name="JOB_NAME", value=job_name),

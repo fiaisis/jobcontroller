@@ -263,9 +263,8 @@ def test_jobcreator_spawn_job_dev_mode_false(
     ceph_mount_path = mock.MagicMock()
     reduction_id = random.randint(1, 100)  # noqa: S311
     max_time_to_complete_job = random.randint(1, 20000)  # noqa: S311
-    db_ip = mock.MagicMock()
-    db_username = mock.MagicMock()
-    db_password = mock.MagicMock()
+    fia_api_host = mock.MagicMock()
+    fia_api_api_key = mock.MagicMock()
     watcher_sha = mock.MagicMock()
     job_creator = JobCreator(watcher_sha, False)
     runner_image = mock.MagicMock()
@@ -283,9 +282,8 @@ def test_jobcreator_spawn_job_dev_mode_false(
         ceph_mount_path,
         reduction_id,
         max_time_to_complete_job,
-        db_ip,
-        db_username,
-        db_password,
+        fia_api_host,
+        fia_api_api_key,
         runner_image,
         manila_share_id,
         manila_share_access_id,
@@ -379,9 +377,8 @@ def test_jobcreator_spawn_job_dev_mode_false(
             name="job-watcher",
             image=f"ghcr.io/fiaisis/jobwatcher@sha256:{watcher_sha}",
             env=[
-                client.V1EnvVar(name="DB_IP", value=db_ip),
-                client.V1EnvVar(name="DB_USERNAME", value=db_username),
-                client.V1EnvVar(name="DB_PASSWORD", value=db_password),
+                client.V1EnvVar(name="FIA_API_HOST", value=fia_api_host),
+                client.V1EnvVar(name="FIA_API_API_KEY", value=fia_api_api_key),
                 client.V1EnvVar(name="MAX_TIME_TO_COMPLETE_JOB", value=str(max_time_to_complete_job)),
                 client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
                 client.V1EnvVar(name="JOB_NAME", value=job_name),
@@ -443,9 +440,8 @@ def test_jobcreator_spawn_job_dev_mode_true(
     ceph_mount_path = mock.MagicMock()
     reduction_id = random.randint(1, 100)  # noqa: S311
     max_time_to_complete_job = random.randint(1, 20000)  # noqa: S311
-    db_ip = mock.MagicMock()
-    db_username = mock.MagicMock()
-    db_password = mock.MagicMock()
+    fia_api_host = mock.MagicMock()
+    fia_api_api_key = mock.MagicMock()
     runner_sha = mock.MagicMock()
     job_creator = JobCreator(mock.MagicMock(), True)
     manila_share_id = mock.MagicMock()
@@ -461,9 +457,8 @@ def test_jobcreator_spawn_job_dev_mode_true(
         ceph_mount_path,
         reduction_id,
         max_time_to_complete_job,
-        db_ip,
-        db_username,
-        db_password,
+        fia_api_host,
+        fia_api_api_key,
         runner_sha,
         manila_share_id,
         manila_share_access_id,
