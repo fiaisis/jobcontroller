@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from json import JSONDecodeError
 from unittest import mock
-from unittest.mock import call, patch, Mock
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -785,7 +785,7 @@ def test_update_job_status_success(mock_patch):
             "stacktrace": "",
             "end": "2025-03-17T10:05:00Z",
         },
-        headers={"Authorization": f"Bearer shh"},
+        headers={"Authorization": "Bearer shh"},
         timeout=30,
     )
 
