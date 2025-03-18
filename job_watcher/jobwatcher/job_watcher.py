@@ -5,6 +5,7 @@ Watch a kubernetes job, and when it ends update the DB with the results, and exi
 import datetime
 import json
 import os
+import sys
 import time
 from http import HTTPStatus
 from json import JSONDecodeError
@@ -318,6 +319,7 @@ class JobWatcher:
             retry_attempts += 1
             time.sleep(3 + retry_attempts)
         logger.error("Failed 3 time to contact fia api while updating job status")
+        sys.exit(1)
 
     def process_job_failed(self) -> None:
         """

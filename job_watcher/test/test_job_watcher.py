@@ -821,15 +821,18 @@ def test_update_job_status_fail(mock_logger_error, mock_sleep, mock_patch):
     mock_sleep.return_value = None
     mock_patch.return_value = mock_response_fail
     expected_patch_call_count = 4
-    JobWatcher._update_job_status(
-        job_id=3,
-        state="SUCCESSFUL",
-        status_message="Error occurred",
-        output_files=[],
-        start="2025-03-17T08:00:00Z",
-        stacktrace="Traceback info",
-        end="2025-03-17T08:10:00Z",
-    )
+    expected_exit_code = 1
+    with pytest.raises(SystemExit) as exc:
+        JobWatcher._update_job_status(
+            job_id=3,
+            state="SUCCESSFUL",
+            status_message="Error occurred",
+            output_files=[],
+            start="2025-03-17T08:00:00Z",
+            stacktrace="Traceback info",
+            end="2025-03-17T08:10:00Z",
+        )
+        assert exc.value.code == expected_exit_code
 
     assert mock_patch.call_count == expected_patch_call_count
     mock_logger_error.assert_called_once_with("Failed 3 time to contact fia api while updating job status")
