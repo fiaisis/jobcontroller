@@ -45,7 +45,7 @@ WATCHER_SHA = os.environ.get("WATCHER_SHA", None)
 if WATCHER_SHA is None:
     raise OSError("WATCHER_SHA not set in the environment, please add it.")
 FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
-FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
+FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY", "")
 QUEUE_HOST = os.environ.get("QUEUE_HOST", "")
 QUEUE_NAME = os.environ.get("INGRESS_QUEUE_NAME", "")
 CONSUMER_USERNAME = os.environ.get("QUEUE_USER", "")
@@ -163,6 +163,7 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             ceph_mount_path=str(ceph_mount_path),
             job_id=new_job.id,
             fia_api_host=FIA_API_HOST,
+            fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
             runner_image=runner_image,
             manila_share_id=MANILA_SHARE_ID,
@@ -228,6 +229,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             ceph_mount_path=str(ceph_mount_path),
             job_id=job_id,
             fia_api_host=FIA_API_HOST,
+            fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
             runner_image=runner_image,
             manila_share_id=MANILA_SHARE_ID,
