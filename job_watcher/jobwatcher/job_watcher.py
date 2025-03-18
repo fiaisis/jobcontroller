@@ -307,6 +307,7 @@ class JobWatcher:
                 "end": end,
             },
             headers={"Authorization": "shh"},
+            timeout=30,
         )
 
     def process_job_failed(self) -> None:
