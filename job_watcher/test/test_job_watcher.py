@@ -822,7 +822,7 @@ def test_update_job_status_fail(mock_logger_error, mock_sleep, mock_patch):
     mock_patch.return_value = mock_response_fail
     expected_patch_call_count = 4
     expected_exit_code = 1
-    with pytest.raises(SystemExit) as exc:
+    with pytest.raises(SystemExit) as exc:  # noqa: PT012 # Needed for assert of status code
         JobWatcher._update_job_status(
             job_id=3,
             state="SUCCESSFUL",
