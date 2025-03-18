@@ -15,7 +15,6 @@ from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[im
 
 from jobwatcher.utils import logger
 
-
 StateString = Literal["SUCCESSFUL", "UNSUCCESSFUL", "ERROR", "NOT_STARTED"]
 FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
 

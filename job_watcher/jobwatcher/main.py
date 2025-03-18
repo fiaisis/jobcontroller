@@ -4,7 +4,6 @@ Main file containing the entry point of the JobWatcher application
 
 import os
 
-
 from jobwatcher.job_watcher import JobWatcher
 from jobwatcher.utils import load_kubernetes_config
 
