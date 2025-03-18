@@ -302,7 +302,7 @@ class JobWatcher:
         while retry_attempts <= max_attempts:
             response = requests.patch(
                 f"http://{FIA_API_HOST}/job/{job_id}",
-                json={
+                data={
                     "state": state,
                     "status_message": status_message,
                     "output_files": output_files,

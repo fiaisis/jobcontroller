@@ -777,7 +777,7 @@ def test_update_job_status_success(mock_patch):
     mock_patch.assert_called_once()
     mock_patch.assert_called_with(
         "http://example.com/job/1",
-        json={
+        data={
             "state": "SUCCESSFUL",
             "status_message": "Job done",
             "output_files": ["file1.txt"],
