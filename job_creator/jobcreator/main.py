@@ -226,25 +226,19 @@ def process_message(message: dict[str, Any]) -> None:
     :param message: the message is a dictionary containing the needed information for spawning a pod
     :return: None
     """
-    if (
-        not message.get("job_id")
-        and message.get("script")
-        and message.get("runner_image")
-        and (message.get("user_number") or message.get("experiment_number"))
-    ):
-        logger.info("Processing simple message...")
-        process_simple_message(message)
-    elif (
-        message.get("job_id")
-        and message.get("runner_image")
-        and message.get("script")
-        and (message.get("user_number") or message.get("experiment_number"))
-    ):
-        logger.info("Processing rerun message...")
-        process_rerun_message(message)
-    else:
-        logger.info("Processing autoreduction message...")
-        process_autoreduction_message(message)
+    job_type = message.get("job_type", "autoreduction")
+    match job_type:
+        case "simple":
+            logger.info("Processing simple message")
+            process_simple_message(message)
+        case "rerun":
+            logger.info("Processing rerun message")
+            process_rerun_message(message)
+        case "autoreduction":
+            logger.info("Processing autoreduction message")
+            process_autoreduction_message(message)
+        case _:
+            logger.warn("message type not recognised, not starting job. Message: ", message)
 
 
 def write_readiness_probe_file() -> None:
