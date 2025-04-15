@@ -78,7 +78,9 @@ def process_simple_message(message: dict[str, Any]) -> None:
         script = message["script"]
         user_number = message.get("user_number")
         experiment_number = message.get("experiment_number")
-        job_id: int = message.get("job_id")
+        job_id = message.get("job_id")
+        if not isinstance(job_id, int):
+            raise ValueError("job_id must be an integer")
 
         if user_number:
             # Add UUID which will avoid collisions
