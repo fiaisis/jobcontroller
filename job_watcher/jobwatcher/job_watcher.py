@@ -306,7 +306,7 @@ class JobWatcher:
                 json={
                     "state": state,
                     "status_message": status_message,
-                    "output_files": output_files,
+                    "outputs": output_files,
                     "start": start,
                     "stacktrace": stacktrace,
                     "end": end,
@@ -388,7 +388,7 @@ class JobWatcher:
             }
 
         # Grab status from output
-        status = cast(StateString, job_output.get("status", "UNSUCCESSFUL").upper())
+        status = cast("StateString", job_output.get("status", "UNSUCCESSFUL").upper())
         status_message = job_output.get("status_message", "")
         stacktrace = job_output.get("stacktrace", "")
         output_files = job_output.get("output_files", [])
