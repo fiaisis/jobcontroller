@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from db.data_models import Job, JobType, Run, State
+from db.data_models import Run
 from db.utils.db_updater import DBUpdater
 
 from jobcreator.job_creator import JobCreator
@@ -76,35 +76,24 @@ def process_simple_message(message: dict[str, Any]) -> None:
     try:
         runner_image = find_sha256_of_image(message["runner_image"])
         script = message["script"]
-        owner = DB_UPDATER.find_owner_db_entry_or_create(
-            experiment_number=message.get("experiment_number"), user_number=message.get("user_number")
-        )
-        if message.get("user_number"):
+        user_number = message.get("user_number")
+        experiment_number = message.get("experiment_number")
+        job_id = message.get("job_id")
+        if not isinstance(job_id, int):
+            raise ValueError("job_id must be an integer")
+
+        if user_number:
             # Add UUID which will avoid collisions
-            job_name = f"run-owner{str(owner.user_number).lower()}-requested-{uuid.uuid4().hex!s}"
+            job_name = f"run-owner{str(user_number).lower()}-requested-{uuid.uuid4().hex!s}"
         else:
             # Add UUID which will avoid collisions
-            job_name = f"run-owner{str(owner.experiment_number).lower()}-requested-{uuid.uuid4().hex!s}"
+            job_name = f"run-owner{str(experiment_number).lower()}-requested-{uuid.uuid4().hex!s}"
         # Job name can be no longer than 50 characters because more will be added to end the name such as -extras-pvc
         # and is needed For defining the PVs and PVCs
         if len(job_name) > 50:  # noqa: PLR2004
             job_name = job_name[:50]
-        job = Job(
-            start=None,
-            end=None,
-            state=State.NOT_STARTED,
-            inputs={},
-            outputs=None,
-            runner_image=runner_image,
-            owner=owner,
-            job_type=JobType.SIMPLE,
-        )
-        DB_UPDATER.add_simple_job(job=job)
-        DB_UPDATER.update_script(job=job, job_script=script, script_sha="")
         ceph_mount_path_kwargs = (
-            {"user_number": str(owner.user_number)}
-            if owner.user_number is not None
-            else {"experiment_number": str(owner.experiment_number)}
+            {"user_number": str(user_number)} if user_number else {"experiment_number": str(experiment_number)}
         )
         ceph_mount_path = create_ceph_mount_path_simple(**ceph_mount_path_kwargs)
         JOB_CREATOR.spawn_job(
@@ -116,7 +105,7 @@ def process_simple_message(message: dict[str, Any]) -> None:
             cluster_id=CLUSTER_ID,
             fs_name=FS_NAME,
             ceph_mount_path=str(ceph_mount_path),
-            job_id=job.id,
+            job_id=job_id,
             fia_api_host=FIA_API_HOST,
             fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
@@ -137,21 +126,13 @@ def process_rerun_message(message: dict[str, Any]) -> None:
     try:
         runner_image = find_sha256_of_image(message["runner_image"])
         script = message["script"]
-        # Add UUID which will avoid collisions for reruns
-        owner = DB_UPDATER.find_owner_db_entry_or_create(
-            experiment_number=message.get("experiment_number"), user_number=message.get("user_number")
-        )
-        run, new_job = DB_UPDATER.add_rerun_job(
-            original_job_id=int(message.get("job_id")),  # type: ignore
-            new_script=script,
-            new_owner_id=owner.id,
-            new_runner_image=runner_image,
-        )
+
         ceph_mount_path = create_ceph_mount_path_autoreduction(
-            instrument_name=run.instrument.instrument_name,
-            rb_number=str(run.owner.experiment_number) if run.owner is not None else "0",
+            instrument_name=message["instrument"],
+            rb_number=str(message["rb_number"]),
         )
-        job_name = f"run-{run.filename.lower()}-{uuid.uuid4().hex!s}"
+        # Add UUID which will avoid collisions for reruns
+        job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
         JOB_CREATOR.spawn_job(
             job_name=job_name,
             script=script,
@@ -161,7 +142,7 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             cluster_id=CLUSTER_ID,
             fs_name=FS_NAME,
             ceph_mount_path=str(ceph_mount_path),
-            job_id=new_job.id,
+            job_id=message["job_id"],
             fia_api_host=FIA_API_HOST,
             fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
@@ -247,25 +228,19 @@ def process_message(message: dict[str, Any]) -> None:
     :param message: the message is a dictionary containing the needed information for spawning a pod
     :return: None
     """
-    if (
-        not message.get("job_id")
-        and message.get("script")
-        and message.get("runner_image")
-        and (message.get("user_number") or message.get("experiment_number"))
-    ):
-        logger.info("Processing simple message...")
-        process_simple_message(message)
-    elif (
-        message.get("job_id")
-        and message.get("runner_image")
-        and message.get("script")
-        and (message.get("user_number") or message.get("experiment_number"))
-    ):
-        logger.info("Processing rerun message...")
-        process_rerun_message(message)
-    else:
-        logger.info("Processing autoreduction message...")
-        process_autoreduction_message(message)
+    job_type = message.get("job_type", "autoreduction")
+    match job_type:
+        case "simple":
+            logger.info("Processing simple message")
+            process_simple_message(message)
+        case "rerun":
+            logger.info("Processing rerun message")
+            process_rerun_message(message)
+        case "autoreduction":
+            logger.info("Processing autoreduction message")
+            process_autoreduction_message(message)
+        case _:
+            logger.warn("message type not recognised, not starting job. Message: ", message)
 
 
 def write_readiness_probe_file() -> None:
