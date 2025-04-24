@@ -9,24 +9,15 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from db.data_models import Run
-from db.utils.db_updater import DBUpdater
-
 from jobcreator.job_creator import JobCreator
 from jobcreator.queue_consumer import QueueConsumer
-from jobcreator.script_aquisition import acquire_script
+from jobcreator.script_acquisition import post_autoreduction_job
 from jobcreator.utils import (
     create_ceph_mount_path_autoreduction,
     create_ceph_mount_path_simple,
     find_sha256_of_image,
     logger,
 )
-
-# Set up the jobcreator environment
-DB_IP = os.environ.get("DB_IP", "")
-DB_USERNAME = os.environ.get("DB_USERNAME", "")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
-DB_UPDATER = DBUpdater(ip=DB_IP, username=DB_USERNAME, password=DB_PASSWORD)
 
 # This is used for ensuring that when on staging we will use an empty dir instead of the ceph production mount
 DEV_MODE: Any = os.environ.get("DEV_MODE", "False")
@@ -164,40 +155,29 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
         filename = Path(message["filepath"]).stem
         rb_number = message["experiment_number"]
         instrument_name = message["instrument"]
-        experiment_number = message["experiment_number"]
-        title = message["experiment_title"]
-        users = message["users"]
-        run_start = message["run_start"]
-        run_end = message["run_end"]
-        good_frames = message["good_frames"]
-        raw_frames = message["raw_frames"]
-        additional_values = message["additional_values"]
         runner_image = message.get("runner_image", DEFAULT_RUNNER)
         runner_image = find_sha256_of_image(runner_image)
+        autoreduction_request = {
+            "filename": filename,
+            "rb_number": str(rb_number),
+            "instrument_name": instrument_name,
+            "title": message["experiment_title"],
+            "users": message["users"],
+            "run_start": message["run_start"],
+            "run_end": message["run_end"],
+            "good_frames": int(message["good_frames"]),
+            "raw_frames": int(message["raw_frames"]),
+            "additional_values": message["additional_values"],
+            "runner_image": runner_image,
+        }
+
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{filename.lower()}-{uuid.uuid4().hex!s}"
-        job = DB_UPDATER.add_detected_run(
-            instrument_name,
-            Run(
-                filename=filename,
-                title=title,
-                users=users,
-                run_start=run_start,
-                run_end=run_end,
-                good_frames=good_frames,
-                raw_frames=raw_frames,
-            ),
-            additional_values,
-            runner_image,
-            experiment_number,
-        )
-        job_id = job.id  # Needed due to ORM weirdness with session availability.
-        script, script_sha = acquire_script(
+        script, job_id = post_autoreduction_job(
             fia_api_host=FIA_API_HOST,
-            job_id=job_id,
-            instrument=instrument_name,
+            fia_api_key=FIA_API_API_KEY,
+            autoreduction_request=autoreduction_request,
         )
-        DB_UPDATER.update_script(job, script, script_sha)
         ceph_mount_path = create_ceph_mount_path_autoreduction(instrument_name, rb_number)
         JOB_CREATOR.spawn_job(
             job_name=job_name,
