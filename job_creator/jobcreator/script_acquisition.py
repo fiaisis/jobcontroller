@@ -31,7 +31,7 @@ def post_autoreduction_job(
             retry_attempt += 1
             time.sleep(3 + retry_attempt)
             continue
-        return response.json().get("script"), response.json()["job_id"]
+        return apply_json_output(response.json().get("script")), response.json()["job_id"]
     raise RuntimeError("Failed to acquire autoreduction script")
 
 
