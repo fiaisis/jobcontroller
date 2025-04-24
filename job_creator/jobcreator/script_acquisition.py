@@ -22,7 +22,7 @@ def post_autoreduction_job(
     retry_attempt, max_attempts = 0, 3
     while retry_attempt <= max_attempts:
         response = requests.post(
-            f"http://{fia_api_host}/jobs/autoreduction",
+            f"http://{fia_api_host}/job/autoreduction",
             headers={"Authorization": f"Bearer {fia_api_key}"},
             json=autoreduction_request,
             timeout=30,
