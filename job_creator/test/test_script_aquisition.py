@@ -17,7 +17,13 @@ def test_immediate_success(mock_post, mock_sleep):
 
     script, job_id = post_autoreduction_job("api.host", "KEY", {"foo": "bar"})
 
-    assert script == "do stuff"
+    assert script == (
+        "do stuff\n"
+        "import json\n"
+        "\n"
+        "print(json.dumps({'status': 'Successful', 'status_message': '', "
+        "'output_files': output, 'stacktrace': ''}))\n"
+    )
     assert job_id == expected_job_id
 
     mock_post.assert_called_once_with(
@@ -42,7 +48,13 @@ def test_retries_then_success(mock_post, mock_sleep):
 
     script, job_id = post_autoreduction_job("host", "APIKEY", {"a": 1})
 
-    assert script == "run me"
+    assert script == (
+        "run me\n"
+        "import json\n"
+        "\n"
+        "print(json.dumps({'status': 'Successful', 'status_message': '', "
+        "'output_files': output, 'stacktrace': ''}))\n"
+    )
     assert job_id == expected_job_id
 
     assert mock_post.call_count == expected_post_call_count
