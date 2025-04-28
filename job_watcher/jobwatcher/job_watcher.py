@@ -294,7 +294,7 @@ class JobWatcher:
         job_id: int,
         state: StateString,
         status_message: str,
-        output_files: list[str],
+        output_files: list[str] | str,
         start: str,
         stacktrace: str,
         end: str,
@@ -306,7 +306,7 @@ class JobWatcher:
                 json={
                     "state": state,
                     "status_message": status_message,
-                    "outputs": output_files,
+                    "outputs": str(output_files),
                     "start": start,
                     "stacktrace": stacktrace,
                     "end": end,

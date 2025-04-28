@@ -23,7 +23,7 @@ DB_UPDATER = mock.MagicMock()
 MAX_TIME_TO_COMPLETE = mock.MagicMock()
 
 
-@pytest.fixture
+@pytest.fixture()
 def job_watcher_maker():
     with (
         mock.patch("jobwatcher.job_watcher._find_pod_from_partial_name") as find_pod_from_partial_name_mock,
@@ -780,7 +780,7 @@ def test_update_job_status_success(mock_patch):
         json={
             "state": "SUCCESSFUL",
             "status_message": "Job done",
-            "outputs": ["file1.txt"],
+            "outputs": "['file1.txt']",
             "start": "2025-03-17T10:00:00Z",
             "stacktrace": "",
             "end": "2025-03-17T10:05:00Z",
