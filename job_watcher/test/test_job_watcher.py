@@ -780,7 +780,7 @@ def test_update_job_status_success(mock_patch):
         json={
             "state": "SUCCESSFUL",
             "status_message": "Job done",
-            "outputs": ["file1.txt"],
+            "outputs": "['file1.txt']",
             "start": "2025-03-17T10:00:00Z",
             "stacktrace": "",
             "end": "2025-03-17T10:05:00Z",
