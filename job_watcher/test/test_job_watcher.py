@@ -23,7 +23,7 @@ DB_UPDATER = mock.MagicMock()
 MAX_TIME_TO_COMPLETE = mock.MagicMock()
 
 
-@pytest.fixture()
+@pytest.fixture
 def job_watcher_maker():
     with (
         mock.patch("jobwatcher.job_watcher._find_pod_from_partial_name") as find_pod_from_partial_name_mock,
