@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           file: ./container/${{ matrix.dockerfile }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image_name }}:${{ github.sha }}
