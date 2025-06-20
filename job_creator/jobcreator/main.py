@@ -53,7 +53,7 @@ FS_NAME = os.environ.get("FS_NAME", "deneb")
 MANILA_SHARE_ID = os.environ.get("MANILA_SHARE_ID", "05b75577-a8fb-4c87-a3f3-6a07012e80bc")
 MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e-486b-a89b-4fd741d04f69")
 
-MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", 60 * 60 * 6))
+MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", str(60 * 60 * 6)))
 
 
 def process_simple_message(message: dict[str, Any]) -> None:
