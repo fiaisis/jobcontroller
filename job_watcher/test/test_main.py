@@ -27,8 +27,6 @@ class MainTest(unittest.TestCase):
     @mock.patch("jobwatcher.main.JobWatcher")
     @mock.patch("jobwatcher.main.load_kubernetes_config")
     def test_main(self, load_kubernetes_config, job_watcher):
-
-
         main()
 
         load_kubernetes_config.assert_called_once()
