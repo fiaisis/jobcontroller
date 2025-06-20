@@ -25,7 +25,8 @@ class MainTest(unittest.TestCase):
     @mock.patch("jobwatcher.main.JobWatcher")
     @mock.patch("jobwatcher.main.load_kubernetes_config")
     def test_main(self, load_kubernetes_config, job_watcher):
-        from jobwatcher.main import main
+        # This is here as environ.get is evaluated before setting the env, if it was a top level import
+        from jobwatcher.main import main  # noqa: PLC0415
 
         main()
 
