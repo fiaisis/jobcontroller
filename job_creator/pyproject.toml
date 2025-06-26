@@ -17,7 +17,7 @@ jobcreator = "jobcreator.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.12.0",
+    "ruff==0.12.1",
     "mypy==1.16.1",
     "pytest==8.4.1",
     "types-requests==2.32.4.20250611"
@@ -26,7 +26,7 @@ formatting = [
 test = [
     "pytest==8.4.1",
     "pytest-cov==6.2.1",
-    "pytest-random-order==1.1.1"
+    "pytest-random-order==1.2.0"
 ]
 
 [tool.setuptools]
