@@ -1,4 +1,4 @@
-FROM python:3.13
+FROM python:3.13.6.6
 
 WORKDIR /jobcreator
 
