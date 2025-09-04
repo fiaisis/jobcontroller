@@ -17,14 +17,14 @@ jobcreator = "jobcreator.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.12.8",
+    "ruff==0.12.12",
     "mypy==1.17.1",
-    "pytest==8.4.1",
+    "pytest==8.4.2",
     "types-requests==2.32.4.20250809"
 ]
 
 test = [
-    "pytest==8.4.1",
+    "pytest==8.4.2",
     "pytest-cov==6.2.1",
     "pytest-random-order==1.2.0"
 ]
