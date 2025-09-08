@@ -57,12 +57,12 @@ jobs:
         tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/jobcreator:${{ github.sha }}
 
     - name: Edit the YAML jobcreator.yml file for staging for jobwatcher
-      uses: mikefarah/yq@v4.47.1
+      uses: mikefarah/yq@v4.47.2
       with:
         cmd: yq e -i '.spec.template.spec.containers[] |= (select(.name == "jobcreator") | .env[] |= select(.name == "WATCHER_SHA").value = "${{ steps.remove_sha256_watcher.outputs.digest }}")' './components/jobcreator/envs/staging/jobcreator.yml'
 
     - name: Edit the YAML jobcreator.yml file for staging for jobcreator
-      uses: mikefarah/yq@v4.47.1
+      uses: mikefarah/yq@v4.47.2
       with:
         cmd: yq e -i '.spec.template.spec.containers[] |= select(.name == "jobcreator").image = "ghcr.io/fiaisis/jobcreator@${{ steps.jobcreator_build.outputs.digest }}"' './components/jobcreator/envs/staging/jobcreator.yml'  
 
