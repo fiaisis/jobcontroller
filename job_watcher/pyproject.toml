@@ -20,7 +20,7 @@ formatting = [
     "mypy==1.18.1",
     "pytest==8.4.2",
     "sqlalchemy-stubs==0.4",
-    "types-requests==2.32.4.20250809"
+    "types-requests==2.32.4.20250913"
 ]
 
 test = [
