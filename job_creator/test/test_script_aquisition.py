@@ -3,7 +3,7 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
-from jobcreator.script_acquisition import apply_json_output, post_autoreduction_job
+from jobcreator.script_acquisition import post_autoreduction_job
 
 
 @patch("jobcreator.script_acquisition.time.sleep", autospec=True)
@@ -75,15 +75,3 @@ def test_exhausts_retries(mock_post, mock_sleep):
     assert "Failed to acquire autoreduction script" in str(exc.value)
     assert mock_post.call_count == expected_post_call_count  # attempts 0,1,2,3 → then raises
     mock_sleep.assert_has_calls([call(4), call(5), call(6)], any_order=False)
-
-
-def test_apply_json_output():
-    input_script = "hi, I am an input script\n"
-
-    output = apply_json_output(input_script)
-
-    expected_output = (
-        input_script + "\nimport json\n\nprint(json.dumps({'status': 'Successful', "
-        "'status_message': '', 'output_files': output, 'stacktrace': ''}))\n"
-    )
-    assert expected_output == output
