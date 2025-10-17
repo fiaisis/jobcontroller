@@ -31,19 +31,5 @@ def post_autoreduction_job(
             retry_attempt += 1
             time.sleep(3 + retry_attempt)
             continue
-        return apply_json_output(response.json().get("script")), response.json()["job_id"]
+        return response.json().get("script"), response.json()["job_id"]
     raise RuntimeError("Failed to acquire autoreduction script")
-
-
-def apply_json_output(script: str) -> str:
-    """
-    The aim is to force whatever the script that is passed to also output to stdinput a json string that consists of
-    3 values, status of the run (status), status message, and output files.
-    :return: The passed script with 3 lines added to ensure a json dump occurs at the end
-    """
-    script_addon = (
-        "import json\n"
-        "\n"
-        "print(json.dumps({'status': 'Successful', 'status_message': '', 'output_files': output, 'stacktrace': ''}))\n"
-    )
-    return script + "\n" + script_addon
