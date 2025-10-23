@@ -815,8 +815,8 @@ def test_update_job_status_retry_success(mock_sleep, mock_patch):
 
 @patch("requests.patch")
 @patch("time.sleep")  # Avoid sleep
-@patch("jobwatcher.job_watcher.logger.error")
-def test_update_job_status_fail(mock_logger_error, mock_sleep, mock_patch):
+@patch("jobwatcher.job_watcher.logger.critical")
+def test_update_job_status_fail(mock_logger_critical, mock_sleep, mock_patch):
     mock_response_fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
     mock_sleep.return_value = None
     mock_patch.return_value = mock_response_fail
@@ -835,4 +835,4 @@ def test_update_job_status_fail(mock_logger_error, mock_sleep, mock_patch):
         assert exc.value.code == expected_exit_code
 
     assert mock_patch.call_count == expected_patch_call_count
-    mock_logger_error.assert_called_once_with("Failed 3 time to contact fia api while updating job status")
+    mock_logger_critical.assert_called_once_with("Failed 3 time to contact fia api while updating job status")
