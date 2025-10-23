@@ -318,7 +318,7 @@ class JobWatcher:
                 return
             retry_attempts += 1
             time.sleep(3 + retry_attempts)
-        logger.error("Failed 3 time to contact fia api while updating job status")
+        logger.critical("Failed 3 time to contact fia api while updating job status")
         sys.exit(1)
 
     def process_job_failed(self) -> None:
