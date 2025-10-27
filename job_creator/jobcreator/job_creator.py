@@ -282,6 +282,7 @@ class JobCreator:
             name=job_name,
             image=runner_image,
             args=[script],
+            env=[client.V1EnvVar(name="PYTHONUNBUFFERED", value=1)],
             volume_mounts=[
                 client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
                 client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
