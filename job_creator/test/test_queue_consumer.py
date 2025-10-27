@@ -38,7 +38,7 @@ def test_init_creates_credentials_and_connection_parameters(setup_queue_consumer
 
 
 def test_connect_to_broker(setup_queue_consumer):
-    quc, blocking_connection, connection_parameters = setup_queue_consumer
+    quc, blocking_connection, _ = setup_queue_consumer
     blocking_connection.assert_called_once_with(quc.connection_parameters)
     assert blocking_connection.return_value == quc.connection
     channel = blocking_connection.return_value.channel.return_value
@@ -50,7 +50,7 @@ def test_connect_to_broker(setup_queue_consumer):
 
 
 def test_message_handler(setup_queue_consumer):
-    quc, blocking_connection, connection_parameters = setup_queue_consumer
+    quc, _, _ = setup_queue_consumer
     message = '{"help": "im stuck"}'
     msg_obj = {"help": "im stuck"}
     MESSAGE_CALLBACK.reset_mock()
@@ -63,7 +63,7 @@ def test_message_handler(setup_queue_consumer):
 
 
 def test_message_handler_on_json_decode_error(setup_queue_consumer):
-    quc, blocking_connection, connection_parameters = setup_queue_consumer
+    quc, _, _ = setup_queue_consumer
     message = "{}::::::::://1//1/1!!!''''''"
     MESSAGE_CALLBACK.reset_mock()
 
@@ -78,7 +78,7 @@ def test_message_handler_on_json_decode_error(setup_queue_consumer):
 
 
 def test_start_consuming(setup_queue_consumer):
-    quc, blocking_connection, connection_parameters = setup_queue_consumer
+    quc, _, _ = setup_queue_consumer
     quc._message_handler = mock.MagicMock()
     header = mock.MagicMock()
     body = mock.MagicMock()
@@ -94,7 +94,7 @@ def test_start_consuming(setup_queue_consumer):
 
 
 def test_start_consumer_will_handle_exceptions_as_warnings(setup_queue_consumer):
-    quc, blocking_connection, connection_parameters = setup_queue_consumer
+    quc, _, _ = setup_queue_consumer
 
     def raise_exception():
         raise Exception("The worst exception!")
