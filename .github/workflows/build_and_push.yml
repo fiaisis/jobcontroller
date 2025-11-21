@@ -18,7 +18,7 @@ jobs:
 
     steps:
     - name: Check out code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         token: ${{ secrets.WRITE_PACKAGE_TOKEN }}
 
@@ -30,7 +30,7 @@ jobs:
         password: ${{ secrets.WRITE_PACKAGE_TOKEN }}
 
     - name: Checkout the Gitops repository
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         repository: fiaisis/gitops
         token: ${{ secrets.GITOPS_STAGING_EDIT_TOKEN }}
@@ -59,12 +59,12 @@ jobs:
         tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/jobcreator:${{ github.sha }}
 
     - name: Edit the YAML jobcreator.yml file for staging for jobwatcher
-      uses: mikefarah/yq@v4.48.1
+      uses: mikefarah/yq@v4.48.2
       with:
         cmd: yq e -i '.spec.template.spec.containers[] |= (select(.name == "jobcreator") | .env[] |= select(.name == "WATCHER_SHA").value = "${{ steps.remove_sha256_watcher.outputs.digest }}")' './components/jobcreator/envs/staging/jobcreator.yml'
 
     - name: Edit the YAML jobcreator.yml file for staging for jobcreator
-      uses: mikefarah/yq@v4.48.1
+      uses: mikefarah/yq@v4.48.2
       with:
         cmd: yq e -i '.spec.template.spec.containers[] |= select(.name == "jobcreator").image = "ghcr.io/fiaisis/jobcreator@${{ steps.jobcreator_build.outputs.digest }}"' './components/jobcreator/envs/staging/jobcreator.yml'  
 
