@@ -17,7 +17,7 @@ jobcreator = "jobcreator.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.14.5",
+    "ruff==0.14.6",
     "mypy==1.18.2",
     "pytest==9.0.1",
     "types-requests==2.32.4.20250913"
