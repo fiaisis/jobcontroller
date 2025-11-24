@@ -5,7 +5,6 @@ Watch a kubernetes job, and when it ends update the DB with the results, and exi
 import datetime
 import json
 import os
-import sys
 import time
 from http import HTTPStatus
 from json import JSONDecodeError
@@ -317,7 +316,6 @@ class JobWatcher:
                 return
             logger.warning("Failed to update job status, retrying in 5 seconds: %s", response.text)
             time.sleep(5)
-
 
     def process_job_failed(self) -> None:
         """

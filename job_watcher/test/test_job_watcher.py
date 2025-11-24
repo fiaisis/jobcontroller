@@ -791,13 +791,13 @@ def test_update_job_status_success(mock_patch):
     )
 
 
-
 @given(strategies.integers(min_value=0, max_value=50))
 def test_update_job_status_retry_until_success(n_failures):
-    with patch("requests.patch") as mock_patch, \
-         patch("time.sleep") as mock_sleep, \
-         patch("jobwatcher.job_watcher.logger.warning") as mock_logger_warning:
-
+    with (
+        patch("requests.patch") as mock_patch,
+        patch("time.sleep") as mock_sleep,
+        patch("jobwatcher.job_watcher.logger.warning") as mock_logger_warning,
+    ):
         mock_sleep.return_value = None
 
         fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, text="server error")
