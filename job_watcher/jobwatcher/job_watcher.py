@@ -15,7 +15,6 @@ from typing import Any, Literal, cast
 import requests
 from kubernetes import client  # type: ignore[import-untyped]
 from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
-from requests import RequestException
 
 from jobwatcher.utils import logger
 
