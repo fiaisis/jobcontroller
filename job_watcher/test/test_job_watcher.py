@@ -810,29 +810,34 @@ def test_update_job_status_retry_success(mock_sleep, mock_patch):
     )
 
     assert mock_patch.call_count == expected_patch_call_count
-    mock_sleep.assert_called_with(3 + 2)  # Should sleep after second fail (retry_attempts=2)
+    # Should sleep 5 seconds after each failure
+    assert mock_sleep.call_count == 2
+    mock_sleep.assert_has_calls([call(5), call(5)])
 
 
 @patch("requests.patch")
 @patch("time.sleep")  # Avoid sleep
-@patch("jobwatcher.job_watcher.logger.error")
-def test_update_job_status_fail(mock_logger_error, mock_sleep, mock_patch):
+@patch("jobwatcher.job_watcher.logger.warning")
+def test_update_job_status_fail_then_success(mock_logger_warning, mock_sleep, mock_patch):
+    # Configure two failures followed by a success to avoid infinite loop
     mock_response_fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+    mock_response_fail.text = "server error"
+    mock_response_success = Mock(status_code=HTTPStatus.OK)
     mock_sleep.return_value = None
-    mock_patch.return_value = mock_response_fail
-    expected_patch_call_count = 4
-    expected_exit_code = 1
-    with pytest.raises(SystemExit) as exc:  # noqa: PT012 # Needed for assert of status code
-        JobWatcher._update_job_status(
-            job_id=3,
-            state="SUCCESSFUL",
-            status_message="Error occurred",
-            output_files=[],
-            start="2025-03-17T08:00:00Z",
-            stacktrace="Traceback info",
-            end="2025-03-17T08:10:00Z",
-        )
-        assert exc.value.code == expected_exit_code
+    mock_patch.side_effect = [mock_response_fail, mock_response_fail, mock_response_success]
 
-    assert mock_patch.call_count == expected_patch_call_count
-    mock_logger_error.assert_called_once_with("Failed 3 time to contact fia api while updating job status")
+    JobWatcher._update_job_status(
+        job_id=3,
+        state="SUCCESSFUL",
+        status_message="Error occurred",
+        output_files=[],
+        start="2025-03-17T08:00:00Z",
+        stacktrace="Traceback info",
+        end="2025-03-17T08:10:00Z",
+    )
+
+    # Two retries then success
+    assert mock_patch.call_count == 3
+    assert mock_sleep.call_count == 2
+    mock_sleep.assert_has_calls([call(5), call(5)])
+    assert mock_logger_warning.call_count == 2

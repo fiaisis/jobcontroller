@@ -299,8 +299,7 @@ class JobWatcher:
         stacktrace: str,
         end: str,
     ) -> None:
-        retry_attempts, max_attempts = 0, 3
-        while retry_attempts <= max_attempts:
+        while True:
             response = requests.patch(
                 f"http://{FIA_API_HOST}/job/{job_id}",
                 json={
@@ -316,10 +315,8 @@ class JobWatcher:
             )
             if response.status_code == HTTPStatus.OK:
                 return
-            retry_attempts += 1
-            time.sleep(3 + retry_attempts)
-        logger.error("Failed 3 time to contact fia api while updating job status")
-        sys.exit(1)
+            logger.warning("Failed to update job status, retrying in 5 seconds: %s", response.text)
+            time.sleep(5)
 
     def process_job_failed(self) -> None:
         """
