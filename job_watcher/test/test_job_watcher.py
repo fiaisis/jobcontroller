@@ -182,7 +182,7 @@ def test_update_current_container_info_partial_name_no_pod(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_changes_job_incomplete_and_not_stalled(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.update_current_container_info = mock.MagicMock()
     jw.cleanup_job = mock.MagicMock()
     jw.check_for_job_complete = mock.MagicMock(return_value=False)
@@ -200,7 +200,7 @@ def test_check_for_changes_job_incomplete_and_not_stalled(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_changes_job_complete_and_not_stalled(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.update_current_container_info = mock.MagicMock()
     jw.cleanup_job = mock.MagicMock()
     jw.check_for_job_complete = mock.MagicMock(return_value=True)
@@ -218,7 +218,7 @@ def test_check_for_changes_job_complete_and_not_stalled(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_changes_job_complete_and_stalled(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.update_current_container_info = mock.MagicMock()
     jw.cleanup_job = mock.MagicMock()
     jw.check_for_job_complete = mock.MagicMock(return_value=True)
@@ -236,7 +236,7 @@ def test_check_for_changes_job_complete_and_stalled(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_changes_job_incomplete_and_stalled(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.update_current_container_info = mock.MagicMock()
     jw.cleanup_job = mock.MagicMock()
     jw.check_for_job_complete = mock.MagicMock(return_value=False)
@@ -254,7 +254,7 @@ def test_check_for_changes_job_incomplete_and_stalled(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_get_container_status(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     container_status = mock.MagicMock()
     jw.pod.status.container_statuses = [container_status]
     container_name = str(mock.MagicMock())
@@ -268,7 +268,7 @@ def test_get_container_status(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_get_container_status_pod_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod = mock.MagicMock()
 
     result = jw.get_container_status()
@@ -278,7 +278,7 @@ def test_get_container_status_pod_is_none(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_get_container_status_not_present(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     container_status = mock.MagicMock()
     jw.pod.status.container_statuses = [container_status]
     container_name = str(mock.MagicMock())
@@ -292,7 +292,7 @@ def test_get_container_status_not_present(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_job_complete_container_status_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.get_container_status = mock.MagicMock(return_value=None)
 
     with pytest.raises(ValueError):  # noqa: PT011
@@ -301,7 +301,7 @@ def test_check_for_job_complete_container_status_is_none(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_job_complete_container_status_is_terminated_exit_code_0(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     container_status = mock.MagicMock()
     container_status.state.terminated.exit_code = 0
     jw.get_container_status = mock.MagicMock(return_value=container_status)
@@ -316,7 +316,7 @@ def test_check_for_job_complete_container_status_is_terminated_exit_code_0(job_w
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_job_complete_container_status_is_terminated_exit_code_not_0(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     container_status = mock.MagicMock()
     container_status.state.terminated.exit_code = 100
     jw.get_container_status = mock.MagicMock(return_value=container_status)
@@ -331,7 +331,7 @@ def test_check_for_job_complete_container_status_is_terminated_exit_code_not_0(j
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_job_complete_container_status_running(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     container_status = mock.MagicMock()
     container_status.state.terminated = None
     jw.get_container_status = mock.MagicMock(return_value=container_status)
@@ -346,7 +346,7 @@ def test_check_for_job_complete_container_status_running(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_pod_stalled_pod_is_younger_than_30_minutes(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod.metadata.creation_timestamp = datetime.now(UTC)
     jw.max_time_to_complete = 99999999
 
@@ -355,7 +355,7 @@ def test_check_for_pod_stalled_pod_is_younger_than_30_minutes(job_watcher_maker)
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_check_for_pod_stalled_pod_where_pod_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod = None
 
     with pytest.raises(AttributeError):
@@ -426,7 +426,7 @@ def test_find_start_and_end_of_pod_terminated(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_failed(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     status_message = mock.MagicMock()
     stacktrace = mock.MagicMock()
     jw._find_latest_raised_error_and_stacktrace = mock.MagicMock(return_value=[status_message, stacktrace])
@@ -449,7 +449,7 @@ def test_process_job_failed(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_failed_pod_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod = None
     jw.job = mock.MagicMock()
 
@@ -459,7 +459,7 @@ def test_process_job_failed_pod_is_none(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_failed_job_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod = mock.MagicMock()
     jw.job = None
 
@@ -504,7 +504,7 @@ def test_process_job_success(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_success_pod_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod = None
     jw.job = mock.MagicMock()
 
@@ -514,7 +514,7 @@ def test_process_job_success_pod_is_none(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_process_job_success_job_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.job = None
     jw.pod = mock.MagicMock()
 
@@ -617,7 +617,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_cleanup_job(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
 
     with (
         mock.patch("jobwatcher.job_watcher.clean_up_pvs_for_job") as clean_up_pvs_for_job,
@@ -631,7 +631,7 @@ def test_cleanup_job(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_cleanup_job_where_job_is_none(job_watcher_maker):
-    jw, _find_pod_from_partial_name, client = job_watcher_maker
+    jw, _find_pod_from_partial_name, _client = job_watcher_maker
     jw.job = None
 
     with pytest.raises(AttributeError):
@@ -696,7 +696,7 @@ def test_find_latest_raised_error_and_stacktrace(job_watcher_maker):
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_find_latest_raised_error_and_stacktrace_raises_error_on_pod_is_none(job_watcher_maker):
-    jw, client, _find_pod_from_partial_name = job_watcher_maker
+    jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod = None
 
     with pytest.raises(AttributeError):

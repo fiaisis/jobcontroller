@@ -318,6 +318,7 @@ class JobWatcher:
             logger.warning("Failed to update job status, retrying in 5 seconds: %s", response.text)
             time.sleep(5)
 
+
     def process_job_failed(self) -> None:
         """
         Process the event that failed, and notify the message broker
