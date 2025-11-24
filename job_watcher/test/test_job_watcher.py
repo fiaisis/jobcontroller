@@ -7,6 +7,7 @@ from unittest import mock
 from unittest.mock import Mock, call, patch
 
 import pytest
+import requests
 from hypothesis import given, strategies
 
 from jobwatcher.job_watcher import (
@@ -791,7 +792,7 @@ def test_update_job_status_success(mock_patch):
     )
 
 
-@given(strategies.integers(min_value=0, max_value=50))
+@given(strategies.integers(min_value=1, max_value=50))
 def test_update_job_status_retry_until_success(n_failures):
     with (
         patch("requests.patch") as mock_patch,
@@ -817,6 +818,35 @@ def test_update_job_status_retry_until_success(n_failures):
         assert mock_patch.call_count == n_failures + 1
         assert mock_sleep.call_count == n_failures
         assert mock_logger_warning.call_count == n_failures
+        mock_sleep.assert_has_calls([call(5)] * n_failures)
 
-        if n_failures > 0:
-            mock_sleep.assert_has_calls([call(5)] * n_failures)
+
+@given(strategies.integers(min_value=1, max_value=50))
+def test_update_job_status_retry_on_request_exception(n_exceptions: int) -> None:
+    with (
+        patch("requests.patch") as mock_patch,
+        patch("time.sleep") as mock_sleep,
+        patch("jobwatcher.job_watcher.logger.warning") as mock_logger_warning,
+    ):
+        mock_sleep.return_value = None
+
+        exc = requests.exceptions.ConnectionError("network down")
+        success = Mock(status_code=HTTPStatus.OK, text="ok")
+
+        mock_patch.side_effect = [exc] * n_exceptions + [success]
+
+        JobWatcher._update_job_status(
+            job_id=42,
+            state="SUCCESSFUL",
+            status_message="OK",
+            output_files=[],
+            start="2025-03-17T09:00:00Z",
+            stacktrace="Traceback info",
+            end="2025-03-17T09:10:00Z",
+        )
+
+        assert mock_patch.call_count == n_exceptions + 1
+
+        assert mock_sleep.call_count == n_exceptions
+        assert mock_logger_warning.call_count == n_exceptions
+        mock_sleep.assert_has_calls([call(5)] * n_exceptions)
