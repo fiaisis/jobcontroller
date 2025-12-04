@@ -7,6 +7,8 @@ from unittest import mock
 from unittest.mock import Mock, call, patch
 
 import pytest
+import requests
+from hypothesis import given, strategies
 
 from jobwatcher.job_watcher import (
     JobWatcher,
@@ -790,49 +792,61 @@ def test_update_job_status_success(mock_patch):
     )
 
 
-@patch("requests.patch")
-@patch("time.sleep")
-def test_update_job_status_retry_success(mock_sleep, mock_patch):
-    mock_sleep.return_value = None
-    # First two attempts fail, third succeeds
-    mock_response_fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
-    mock_response_success = Mock(status_code=HTTPStatus.OK)
-    mock_patch.side_effect = [mock_response_fail, mock_response_fail, mock_response_success]
-    expected_patch_call_count = 3
-    JobWatcher._update_job_status(
-        job_id=2,
-        state="SUCCESSFUL",
-        status_message="In progress",
-        output_files=[],
-        start="2025-03-17T09:00:00Z",
-        stacktrace="",
-        end="",
-    )
+@given(strategies.integers(min_value=1, max_value=50))
+def test_update_job_status_retry_until_success(n_failures):
+    with (
+        patch("requests.patch") as mock_patch,
+        patch("time.sleep") as mock_sleep,
+        patch("jobwatcher.job_watcher.logger.warning") as mock_logger_warning,
+    ):
+        mock_sleep.return_value = None
 
-    assert mock_patch.call_count == expected_patch_call_count
-    mock_sleep.assert_called_with(3 + 2)  # Should sleep after second fail (retry_attempts=2)
+        fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, text="server error")
+        success = Mock(status_code=HTTPStatus.OK)
+        mock_patch.side_effect = [fail] * n_failures + [success]
 
-
-@patch("requests.patch")
-@patch("time.sleep")  # Avoid sleep
-@patch("jobwatcher.job_watcher.logger.critical")
-def test_update_job_status_fail(mock_logger_critical, mock_sleep, mock_patch):
-    mock_response_fail = Mock(status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
-    mock_sleep.return_value = None
-    mock_patch.return_value = mock_response_fail
-    expected_patch_call_count = 4
-    expected_exit_code = 1
-    with pytest.raises(SystemExit) as exc:  # noqa: PT012 # Needed for assert of status code
         JobWatcher._update_job_status(
-            job_id=3,
+            job_id=2,
             state="SUCCESSFUL",
-            status_message="Error occurred",
+            status_message="Some status",
             output_files=[],
-            start="2025-03-17T08:00:00Z",
+            start="2025-03-17T09:00:00Z",
             stacktrace="Traceback info",
-            end="2025-03-17T08:10:00Z",
+            end="2025-03-17T09:10:00Z",
         )
-        assert exc.value.code == expected_exit_code
 
-    assert mock_patch.call_count == expected_patch_call_count
-    mock_logger_critical.assert_called_once_with("Failed 3 time to contact fia api while updating job status")
+        assert mock_patch.call_count == n_failures + 1
+        assert mock_sleep.call_count == n_failures
+        assert mock_logger_warning.call_count == n_failures
+        mock_sleep.assert_has_calls([call(5)] * n_failures)
+
+
+@given(strategies.integers(min_value=1, max_value=50))
+def test_update_job_status_retry_on_request_exception(n_exceptions: int) -> None:
+    with (
+        patch("requests.patch") as mock_patch,
+        patch("time.sleep") as mock_sleep,
+        patch("jobwatcher.job_watcher.logger.warning") as mock_logger_warning,
+    ):
+        mock_sleep.return_value = None
+
+        exc = requests.exceptions.ConnectionError("network down")
+        success = Mock(status_code=HTTPStatus.OK, text="ok")
+
+        mock_patch.side_effect = [exc] * n_exceptions + [success]
+
+        JobWatcher._update_job_status(
+            job_id=42,
+            state="SUCCESSFUL",
+            status_message="OK",
+            output_files=[],
+            start="2025-03-17T09:00:00Z",
+            stacktrace="Traceback info",
+            end="2025-03-17T09:10:00Z",
+        )
+
+        assert mock_patch.call_count == n_exceptions + 1
+
+        assert mock_sleep.call_count == n_exceptions
+        assert mock_logger_warning.call_count == n_exceptions
+        mock_sleep.assert_has_calls([call(5)] * n_exceptions)

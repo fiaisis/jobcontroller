@@ -5,8 +5,8 @@ Watch a kubernetes job, and when it ends update the DB with the results, and exi
 import datetime
 import json
 import os
-import sys
 import time
+from contextlib import suppress
 from http import HTTPStatus
 from json import JSONDecodeError
 from time import sleep
@@ -299,27 +299,26 @@ class JobWatcher:
         stacktrace: str,
         end: str,
     ) -> None:
-        retry_attempts, max_attempts = 0, 3
-        while retry_attempts <= max_attempts:
-            response = requests.patch(
-                f"http://{FIA_API_HOST}/job/{job_id}",
-                json={
-                    "state": state,
-                    "status_message": status_message,
-                    "outputs": str(output_files),
-                    "start": start,
-                    "stacktrace": stacktrace,
-                    "end": end,
-                },
-                headers={"Authorization": f"Bearer {FIA_API_API_KEY}"},
-                timeout=30,
-            )
-            if response.status_code == HTTPStatus.OK:
-                return
-            retry_attempts += 1
-            time.sleep(3 + retry_attempts)
-        logger.critical("Failed 3 time to contact fia api while updating job status")
-        sys.exit(1)
+        while True:
+            with suppress(requests.exceptions.RequestException):
+                response = requests.patch(
+                    f"http://{FIA_API_HOST}/job/{job_id}",
+                    json={
+                        "state": state,
+                        "status_message": status_message,
+                        "outputs": str(output_files),
+                        "start": start,
+                        "stacktrace": stacktrace,
+                        "end": end,
+                    },
+                    headers={"Authorization": f"Bearer {FIA_API_API_KEY}"},
+                    timeout=30,
+                )
+                if response.status_code == HTTPStatus.OK:
+                    return
+
+            logger.warning("Failed to update job status, retrying in 5 seconds")
+            time.sleep(5)
 
     def process_job_failed(self) -> None:
         """
