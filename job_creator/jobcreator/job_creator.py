@@ -380,7 +380,7 @@ class JobCreator:
             volumes.append(client.V1Volume(name="dev-shm",
                                            empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi",
                                                                                    medium="Memory"))),
-            volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))
+            volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
 
         main_container = client.V1Container(
             name=job_name,

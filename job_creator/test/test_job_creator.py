@@ -385,7 +385,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
 @mock.patch("jobcreator.job_creator.client")
 def test_jobcreator_spawn_job_dev_mode_true_imat(
     client,
-    _,  # noqa: PT019
+    _,  # noqa: PT019, PLR915
     setup_ceph_pv,
     setup_smb_pv,
     setup_pvc,
@@ -529,7 +529,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
         call(name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory"))
         in client.V1Volume.call_args_list
     )
-    assert call(name="dev-shm", mount_path="/dev/shm") in client.V1VolumeMount.call_args_list
+    assert call(name="dev-shm", mount_path="/dev/shm") in client.V1VolumeMount.call_args_list  # noqa: PLR0915
     assert client.V1Volume.call_count == 5  # noqa: PLR2004
     assert client.V1PersistentVolumeClaimVolumeSource.call_count == 4  # noqa: PLR2004
     assert (
@@ -558,7 +558,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
                 client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
                 client.V1VolumeMount(name="imat-mount", mount_path="/imat"),
-                client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm")
+                client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm")  # noqa: PLR0915
             ],
         )
         in client.V1Container.call_args_list
@@ -582,7 +582,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
 @mock.patch("jobcreator.job_creator.client")
-def test_jobcreator_spawn_job_dev_mode_true(
+def test_jobcreator_spawn_job_dev_mode_false(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
