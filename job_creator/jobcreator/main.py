@@ -3,13 +3,12 @@ Main class, creates jobs by calling to the jobcreator, creates the jobwatcher fo
 requests from the topicconsumer.
 """
 
-import os
 import json
+import os
 import time
 import uuid
 from pathlib import Path
 from typing import Any
-from kubernetes import client  # type: ignore[import-untyped]
 
 from jobcreator.job_creator import JobCreator
 from jobcreator.queue_consumer import QueueConsumer
@@ -85,9 +84,8 @@ def _select_runner_image(instrument: str) -> str:
             if IMAGING_RUNNER_SHA is not None:
                 logger.info("Imaging runner image selected for %s ", instrument)
                 return IMAGING_RUNNER
-            else:
-                logger.error("Imaging runner sha not defined in environment variables, using Default runner")
-                return DEFAULT_RUNNER
+            logger.error("Imaging runner sha not defined in environment variables, using Default runner")
+            return DEFAULT_RUNNER
         case _:
             logger.info("Using default runner image %s", instrument)
             return DEFAULT_RUNNER
@@ -125,11 +123,11 @@ def process_simple_message(message: dict[str, Any]) -> None:
         user_number = message.get("user_number")
         experiment_number = message.get("experiment_number")
         job_id = message.get("job_id")
-        taints = message.get("taints", None)
+        taints = message.get("taints")
         if taints is not None:
             # Attempt to load from a json string list
             taints = json.loads(str(taints))
-        affinity = message.get("affinity", None)
+        affinity = message.get("affinity")
         if affinity is not None:
             affinity = json.loads(str(taints))
 
@@ -168,7 +166,7 @@ def process_simple_message(message: dict[str, Any]) -> None:
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
             special_pvs=[],
             taints=taints,
-            affinity=affinity
+            affinity=affinity,
         )
     except Exception as exception:
         logger.exception(exception)
@@ -212,7 +210,7 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
             special_pvs=special_pvs,
             taints=taints,
-            affinity=affinity
+            affinity=affinity,
         )
     except Exception as exception:
         logger.exception(exception)
@@ -228,7 +226,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
         filename = Path(message["filepath"]).stem
         rb_number = message["experiment_number"]
         instrument_name = message["instrument"]
-        runner_image = message.get("runner_image", None)
+        runner_image = message.get("runner_image")
         if runner_image is None:
             runner_image = _select_runner_image(instrument_name)
         runner_image = find_sha256_of_image(runner_image)
@@ -275,7 +273,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
             special_pvs=special_pvs,
             taints=taints,
-            affinity=affinity
+            affinity=affinity,
         )
     except Exception as exception:
         logger.exception(exception)

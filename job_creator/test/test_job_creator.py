@@ -4,11 +4,11 @@ from unittest.mock import call
 
 from jobcreator.job_creator import (
     JobCreator,
-    _setup_smb_pv,
-    _setup_pvc,
     _setup_ceph_pv,
     _setup_extras_pv,
     _setup_extras_pvc,
+    _setup_pvc,
+    _setup_smb_pv,
 )
 
 
@@ -20,7 +20,13 @@ def test_setup_smb_pv(client):
     pv_name = mock.MagicMock()
     secret_name = mock.MagicMock()
 
-    _setup_smb_pv(secret_namespace=secret_namespace, source=source, mount_options=mount_options, pv_name=pv_name, secret_name=secret_name)
+    _setup_smb_pv(
+        secret_namespace=secret_namespace,
+        source=source,
+        mount_options=mount_options,
+        pv_name=pv_name,
+        secret_name=secret_name,
+    )
 
     client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
         client.V1PersistentVolume.return_value,
@@ -74,7 +80,9 @@ def test_setup_pvc(client):
         metadata=client.V1ObjectMeta.return_value,
         spec=client.V1PersistentVolumeClaimSpec.return_value,
     )
-    client.CoreV1Api().create_namespaced_persistent_volume_claim.assert_called_once_with(namespace=namespace, body=client.V1PersistentVolumeClaim.return_value)
+    client.CoreV1Api().create_namespaced_persistent_volume_claim.assert_called_once_with(
+        namespace=namespace, body=client.V1PersistentVolumeClaim.return_value
+    )
 
 
 @mock.patch("jobcreator.job_creator.client")
@@ -155,7 +163,17 @@ def test_setup_ceph_pv(client):
     fs_name = mock.MagicMock()
     ceph_mount_path = mock.MagicMock()
 
-    assert _setup_ceph_pv(pv_name=pv_name, ceph_creds_k8s_secret_name= ceph_creds_k8s_secret_name, ceph_creds_k8s_namespace=ceph_creds_k8s_namespace, cluster_id=cluster_id, fs_name=fs_name, ceph_mount_path=ceph_mount_path) == pv_name
+    assert (
+        _setup_ceph_pv(
+            pv_name=pv_name,
+            ceph_creds_k8s_secret_name=ceph_creds_k8s_secret_name,
+            ceph_creds_k8s_namespace=ceph_creds_k8s_namespace,
+            cluster_id=cluster_id,
+            fs_name=fs_name,
+            ceph_mount_path=ceph_mount_path,
+        )
+        == pv_name
+    )
 
     client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
         client.V1PersistentVolume.return_value,
@@ -207,7 +225,7 @@ def test_jobcreator_init(mock_load_kubernetes_config):
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
 @mock.patch("jobcreator.job_creator.client")
-def test_jobcreator_spawn_job_dev_mode_true(  # noqa: PLR0915
+def test_jobcreator_spawn_job_dev_mode_true(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
@@ -431,7 +449,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
         manila_share_access_id,
         special_pvs,
         taints,
-        affinity
+        affinity,
     )
 
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
@@ -474,24 +492,28 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
             node_selector_terms=[
                 client.V1NodeSelectorTerm(
                     match_expressions=[
-                        client.V1NodeSelectorRequirement(
-                            key="node-type",
-                            operator="In",
-                            values=["gpu-worker"]
-                        )
+                        client.V1NodeSelectorRequirement(key="node-type", operator="In", values=["gpu-worker"])
                     ]
                 )
             ]
         )
     )
-    client.V1Affinity.assert_called_once_with(pod_anti_affinity=client.V1PodAntiAffinity.return_value, node_affinity=client.V1NodeAffinity.return_value)
+    client.V1Affinity.assert_called_once_with(
+        pod_anti_affinity=client.V1PodAntiAffinity.return_value, node_affinity=client.V1NodeAffinity.return_value
+    )
     client.V1PodSpec.assert_called_once_with(
         affinity=client.V1Affinity.return_value,
         service_account_name="jobwatcher",
         containers=[client.V1Container.return_value, client.V1Container.return_value],
         restart_policy="Never",
         tolerations=[client.V1Toleration.return_value],
-        volumes=[client.V1Volume.return_value, client.V1Volume.return_value, client.V1Volume.return_value, client.V1Volume.return_value, client.V1Volume.return_value],
+        volumes=[
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+        ],
     )
     assert (
         call(name="ceph-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
@@ -558,7 +580,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
                 client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
                 client.V1VolumeMount(name="imat-mount", mount_path="/imat"),
-                client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm")  # noqa: S108
+                client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"),  # noqa: S108
             ],
         )
         in client.V1Container.call_args_list
@@ -628,7 +650,7 @@ def test_jobcreator_spawn_job_dev_mode_false(
         manila_share_access_id,
         special_pvs,
         taints,
-        affinity
+        affinity,
     )
 
     assert (

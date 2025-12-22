@@ -1,6 +1,7 @@
 """
 Communicate to a kubernetes API to spawn a pod with the metadata passed by message to the RunMaker
 """
+
 from typing import Any
 
 from kubernetes import client  # type: ignore[import-untyped]
@@ -178,10 +179,11 @@ def _generate_tolerations_from_taints(taints: list[dict[str, Any]]) -> list[clie
             value=taint.get("value", None),
             key=taint.get("key", None),
             operator=taint.get("operator", None),
-            effect=taint.get("effect", None)
+            effect=taint.get("effect", None),
         )
         tolerations.append(toleration)
     return tolerations
+
 
 def _generate_affinities(node_affinity_dict: dict[str, Any] | None = None) -> client.V1Affinity:
     # Add the anti-affinity that we always use
@@ -207,19 +209,14 @@ def _generate_affinities(node_affinity_dict: dict[str, Any] | None = None) -> cl
                 node_selector_terms=[
                     client.V1NodeSelectorTerm(
                         match_expressions=[
-                            client.V1NodeSelectorRequirement(
-                                key="node-type",
-                                operator="In",
-                                values=["gpu-worker"]
-                            )
+                            client.V1NodeSelectorRequirement(key="node-type", operator="In", values=["gpu-worker"])
                         ]
                     )
                 ]
             )
         )
         return client.V1Affinity(pod_anti_affinity=anti_affinity, node_affinity=node_affinity)
-    else:
-        return client.V1Affinity(pod_anti_affinity=anti_affinity)
+    return client.V1Affinity(pod_anti_affinity=anti_affinity)
 
 
 class JobCreator:
@@ -258,7 +255,7 @@ class JobCreator:
         manila_share_access_id: str,
         special_pvs: list[str],
         taints: list[dict[str, Any]],
-        affinity: dict[str, Any]
+        affinity: dict[str, Any],
     ) -> None:
         """
         Takes the meta_data from the message and uses that dictionary for generating the deployment of the pod.
@@ -293,7 +290,13 @@ class JobCreator:
 
         # Setup Archive PV and PVC
         archive_pv_name = f"{job_name}-archive-pv-smb"
-        _setup_smb_pv(archive_pv_name, "archive-creds", job_namespace, "//isisdatar55.isis.cclrc.ac.uk/inst$/", ["noserverino", "_netdev", "vers=2.1"])
+        _setup_smb_pv(
+            archive_pv_name,
+            "archive-creds",
+            job_namespace,
+            "//isisdatar55.isis.cclrc.ac.uk/inst$/",
+            ["noserverino", "_netdev", "vers=2.1"],
+        )
         pv_names.append(archive_pv_name)
 
         archive_pvc_name = f"{job_name}-archive-pvc"
@@ -316,14 +319,16 @@ class JobCreator:
         # Setup ceph PV and PVC
         if not self.dev_mode:
             ceph_pv_name = f"{job_name}-ceph-pv"
-            _setup_ceph_pv(
-                ceph_pv_name,
-                ceph_creds_k8s_secret_name,
-                ceph_creds_k8s_namespace,
-                cluster_id,
-                fs_name,
-                ceph_mount_path,
-            ),
+            (
+                _setup_ceph_pv(
+                    ceph_pv_name,
+                    ceph_creds_k8s_secret_name,
+                    ceph_creds_k8s_namespace,
+                    cluster_id,
+                    fs_name,
+                    ceph_mount_path,
+                ),
+            )
             pv_names.append(ceph_pv_name)
 
             ceph_pvc_name = f"{job_name}-ceph-pvc"
@@ -364,22 +369,28 @@ class JobCreator:
             ),
         ]
         volumes_mounts = [
-                client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
-                client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
-                client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
-            ]
+            client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
+            client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
+            client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
+        ]
         # Setup special PVs and add them to the volume mounts
         if "imat" in special_pvs:
             _setup_imat_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
-            imat_pvc_source = client.V1PersistentVolumeClaimVolumeSource(claim_name=f"{job_name}-ndximat-pvc", read_only=True)
+            imat_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
+                claim_name=f"{job_name}-ndximat-pvc", read_only=True
+            )
             volumes.append(client.V1Volume(name="imat-mount", persistent_volume_claim=imat_pvc_source))
             volumes_mounts.append(client.V1VolumeMount(name="imat-mount", mount_path="/imat"))
             # Because imat is special and uses mantid imaging to load large .tiff files, we need to ensure the /dev/shm
             # is larger than 64mb. We do however have a soft-ish limit of around 32GiB on the size of datasets when
             # doing this.
-            volumes.append(client.V1Volume(name="dev-shm",
-                                           empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi",
-                                                                                   medium="Memory"))),
+            (
+                volumes.append(
+                    client.V1Volume(
+                        name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
+                    )
+                ),
+            )
             volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
 
         main_container = client.V1Container(
