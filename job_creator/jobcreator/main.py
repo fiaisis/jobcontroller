@@ -4,10 +4,12 @@ requests from the topicconsumer.
 """
 
 import os
+import json
 import time
 import uuid
 from pathlib import Path
 from typing import Any
+from kubernetes import client  # type: ignore[import-untyped]
 
 from jobcreator.job_creator import JobCreator
 from jobcreator.queue_consumer import QueueConsumer
@@ -32,6 +34,8 @@ DEFAULT_RUNNER_SHA: Any = os.environ.get("DEFAULT_RUNNER_SHA", None)
 if DEFAULT_RUNNER_SHA is None:
     raise OSError("DEFAULT_RUNNER_SHA not set in the environment, please add it.")
 DEFAULT_RUNNER = f"ghcr.io/fiaisis/mantid@sha256:{DEFAULT_RUNNER_SHA}"
+IMAGING_RUNNER_SHA: Any = os.environ.get("IMAGING_RUNNER_SHA", None)
+IMAGING_RUNNER = f"ghcr.io/fiaisis/mantidimaging@sha256:{IMAGING_RUNNER_SHA}"
 WATCHER_SHA = os.environ.get("WATCHER_SHA", None)
 if WATCHER_SHA is None:
     raise OSError("WATCHER_SHA not set in the environment, please add it.")
@@ -56,6 +60,57 @@ MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e
 MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", str(60 * 60 * 6)))
 
 
+def _generate_special_pvs(instrument: str) -> list[str]:
+    """
+    A generic function for, based on passed args, returning what the special persistent volumes should be.
+    """
+    special_pvs = []
+
+    match instrument.lower():
+        case "imat":
+            logger.info("Special PV for %s added.", instrument)
+            special_pvs.append("imat")
+        case _:
+            logger.info("No special PV needed for %s", instrument)
+
+    return special_pvs
+
+
+def _select_runner_image(instrument: str) -> str:
+    """
+    A generic function for, based on passed args, returning what the runner that should be used.
+    """
+    match instrument.lower():
+        case "imat":
+            if IMAGING_RUNNER_SHA is not None:
+                logger.info("Imaging runner image selected for %s ", instrument)
+                return IMAGING_RUNNER
+            else:
+                logger.error("Imaging runner sha not defined in environment variables, using Default runner")
+                return DEFAULT_RUNNER
+        case _:
+            logger.info("Using default runner image %s", instrument)
+            return DEFAULT_RUNNER
+
+
+def _select_taints_and_affinity(instrument: str) -> (list[dict[str, Any]], dict[str, Any]):
+    """
+    A generic function for, based on passed args, returning what the runner that should be used.
+    """
+    taints = []
+    affinity = None
+
+    match instrument.lower():
+        case "imat":
+            logger.info("Applying taint to the job on instrument %s", instrument)
+            taints.append({"key": "nvidia.com/gpu", "effect": "NoSchedule", "operator": "Exists"})
+            affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
+        case _:
+            logger.info("No taints applied to %s runners", instrument)
+
+    return taints, affinity
+
+
 def process_simple_message(message: dict[str, Any]) -> None:
     """
     A simple message expects the following entries in the dictionary: (experiment_number or user_number, runner_image,
@@ -70,6 +125,14 @@ def process_simple_message(message: dict[str, Any]) -> None:
         user_number = message.get("user_number")
         experiment_number = message.get("experiment_number")
         job_id = message.get("job_id")
+        taints = message.get("taints", None)
+        if taints is not None:
+            # Attempt to load from a json string list
+            taints = json.loads(str(taints))
+        affinity = message.get("affinity", None)
+        if affinity is not None:
+            affinity = json.loads(str(taints))
+
         if not isinstance(job_id, int):
             raise ValueError("job_id must be an integer")
 
@@ -103,6 +166,9 @@ def process_simple_message(message: dict[str, Any]) -> None:
             runner_image=runner_image,
             manila_share_id=MANILA_SHARE_ID,
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
+            special_pvs=[],
+            taints=taints,
+            affinity=affinity
         )
     except Exception as exception:
         logger.exception(exception)
@@ -122,6 +188,10 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             instrument_name=message["instrument"],
             rb_number=str(message["rb_number"]),
         )
+
+        special_pvs = _generate_special_pvs(instrument=message["instrument"])
+        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"])
+
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
         JOB_CREATOR.spawn_job(
@@ -140,6 +210,9 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             runner_image=runner_image,
             manila_share_id=MANILA_SHARE_ID,
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
+            special_pvs=special_pvs,
+            taints=taints,
+            affinity=affinity
         )
     except Exception as exception:
         logger.exception(exception)
@@ -155,7 +228,9 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
         filename = Path(message["filepath"]).stem
         rb_number = message["experiment_number"]
         instrument_name = message["instrument"]
-        runner_image = message.get("runner_image", DEFAULT_RUNNER)
+        runner_image = message.get("runner_image", None)
+        if runner_image is None:
+            runner_image = _select_runner_image(instrument_name)
         runner_image = find_sha256_of_image(runner_image)
         autoreduction_request = {
             "filename": filename,
@@ -170,6 +245,9 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             "additional_values": message["additional_values"],
             "runner_image": runner_image,
         }
+
+        special_pvs = _generate_special_pvs(instrument=instrument_name)
+        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"])
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{filename.lower()}-{uuid.uuid4().hex!s}"
@@ -195,6 +273,9 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             runner_image=runner_image,
             manila_share_id=MANILA_SHARE_ID,
             manila_share_access_id=MANILA_SHARE_ACCESS_ID,
+            special_pvs=special_pvs,
+            taints=taints,
+            affinity=affinity
         )
     except Exception as exception:
         logger.exception(exception)
