@@ -385,7 +385,7 @@ def test_jobcreator_spawn_job_dev_mode_true(  # noqa: PLR0915
 @mock.patch("jobcreator.job_creator.client")
 def test_jobcreator_spawn_job_dev_mode_true_imat(
     client,
-    _,  # noqa: PT019, PLR915
+    _,  # noqa: PT019, PLR0915
     setup_ceph_pv,
     setup_smb_pv,
     setup_pvc,
