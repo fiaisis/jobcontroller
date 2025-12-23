@@ -251,6 +251,9 @@ def test_jobcreator_spawn_job_dev_mode_true(
     runner_image = mock.MagicMock()
     manila_share_id = mock.MagicMock()
     manila_share_access_id = mock.MagicMock()
+    special_pvs = mock.MagicMock()
+    taints = mock.MagicMock()
+    affinity = mock.MagicMock()
 
     job_creator.spawn_job(
         job_name,
@@ -268,6 +271,9 @@ def test_jobcreator_spawn_job_dev_mode_true(
         runner_image,
         manila_share_id,
         manila_share_access_id,
+        special_pvs,
+        taints,
+        affinity
     )
 
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
@@ -594,7 +600,6 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
         fs_name,
         ceph_mount_path,
     )
-    setup_pvc.called_with(job_name=job_name, job_namespace=job_namespace)
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
