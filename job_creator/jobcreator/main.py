@@ -96,7 +96,7 @@ def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], 
     A generic function for, based on passed args, returning what the runner that should be used.
     """
     taints = []
-    affinity = None
+    affinity = {}
 
     match instrument.lower():
         case "imat":
