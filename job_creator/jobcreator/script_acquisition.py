@@ -21,12 +21,24 @@ def post_autoreduction_job(
     """
     retry_attempt, max_attempts = 0, 3
     while retry_attempt <= max_attempts:
-        response = requests.post(
-            f"http://{fia_api_host}/job/autoreduction",
-            headers={"Authorization": f"Bearer {fia_api_key}"},
-            json=autoreduction_request,
-            timeout=30,
-        )
+        try:
+            response = requests.post(
+                f"https://{fia_api_host}/job/autoreduction",
+                headers={"Authorization": f"Bearer {fia_api_key}"},
+                json=autoreduction_request,
+                timeout=30,
+            )
+        except requests.exceptions.SSLError as sslerror:
+            # If fails to use SSL and using cluster.local as part of host, use http.
+            if "cluster.local" in fia_api_host:
+                response = requests.post(
+                    f"http://{fia_api_host}/job/autoreduction",
+                    headers={"Authorization": f"Bearer {fia_api_key}"},
+                    json=autoreduction_request,
+                    timeout=30,
+                )
+            else:
+                raise sslerror
         if response.status_code != HTTPStatus.CREATED:
             retry_attempt += 1
             time.sleep(3 + retry_attempt)

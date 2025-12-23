@@ -21,7 +21,7 @@ def test_immediate_success(mock_post, mock_sleep):
     assert job_id == expected_job_id
 
     mock_post.assert_called_once_with(
-        "http://api.host/job/autoreduction",
+        "https://api.host/job/autoreduction",
         headers={"Authorization": "Bearer KEY"},
         json={"foo": "bar"},
         timeout=30,
