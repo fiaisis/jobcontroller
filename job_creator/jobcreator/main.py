@@ -91,7 +91,7 @@ def _select_runner_image(instrument: str) -> str:
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(instrument: str) -> (list[dict[str, Any]], dict[str, Any]):
+def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
@@ -127,9 +127,13 @@ def process_simple_message(message: dict[str, Any]) -> None:
         if taints is not None:
             # Attempt to load from a json string list
             taints = json.loads(str(taints))
+        else:
+            taints = []
         affinity = message.get("affinity")
         if affinity is not None:
             affinity = json.loads(str(taints))
+        else:
+            affinity = {}
 
         if not isinstance(job_id, int):
             raise ValueError("job_id must be an integer")

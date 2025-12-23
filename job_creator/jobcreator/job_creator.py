@@ -163,7 +163,7 @@ def _setup_ceph_pv(
     return pv_name
 
 
-def _setup_imat_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], pvc_names: list[str]):
+def _setup_imat_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
     imat_pv_name = f"{job_name}-ndximat-pv-smb"
     imat_pvc_name = f"{job_name}-ndximat-pvc"
     _setup_smb_pv(imat_pv_name, "imat-creds", namespace, "//NDXIMAT.isis.cclrc.ac.uk/data$/", [])
@@ -384,12 +384,10 @@ class JobCreator:
             # Because imat is special and uses mantid imaging to load large .tiff files, we need to ensure the /dev/shm
             # is larger than 64mb. We do however have a soft-ish limit of around 32GiB on the size of datasets when
             # doing this.
-            (
-                volumes.append(
-                    client.V1Volume(
-                        name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
-                    )
-                ),
+            volumes.append(
+                client.V1Volume(
+                    name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
+                )
             )
             volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
 
