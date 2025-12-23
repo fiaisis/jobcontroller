@@ -273,7 +273,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
         manila_share_access_id,
         special_pvs,
         taints,
-        affinity
+        affinity,
     )
 
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
