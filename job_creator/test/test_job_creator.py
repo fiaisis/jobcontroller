@@ -395,7 +395,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
         fs_name,
         ceph_mount_path,
     )
-    assert setup_pvc.call_count == 3
+    assert setup_pvc.call_count == 3  # noqa: PLR2004
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
