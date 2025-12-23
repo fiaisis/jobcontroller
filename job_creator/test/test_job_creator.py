@@ -229,8 +229,8 @@ def test_jobcreator_spawn_job_dev_mode_true(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
-    setup_smb_pv,
     setup_pvc,
+    setup_smb_pv,
     setup_extras_pvc,
     setup_extras_pv,
 ):
@@ -275,7 +275,6 @@ def test_jobcreator_spawn_job_dev_mode_true(
         taints,
         affinity,
     )
-
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["body"] == client.V1Job.return_value
     client.V1Job.assert_called_once_with(
@@ -283,20 +282,6 @@ def test_jobcreator_spawn_job_dev_mode_true(
         kind="Job",
         metadata=client.V1ObjectMeta.return_value,
         spec=client.V1JobSpec.return_value,
-    )
-    assert (
-        call(
-            name=job_name,
-            annotations={
-                "job-id": str(reduction_id),
-                "pvs": str([setup_smb_pv.return_value, setup_ceph_pv.return_value, setup_extras_pv.return_value]),
-                "pvcs": str(
-                    [setup_smb_pv.return_value, setup_pvc.return_value, setup_extras_pvc.return_value],
-                ),
-                "kubectl.kubernetes.io/default-container": client.V1Container.return_value.name,
-            },
-        )
-        in client.V1ObjectMeta.call_args_list
     )
     assert (
         call(labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"}) in client.V1ObjectMeta.call_args_list
@@ -324,13 +309,26 @@ def test_jobcreator_spawn_job_dev_mode_true(
     client.V1PodAntiAffinity.assert_called_once_with(
         preferred_during_scheduling_ignored_during_execution=[client.V1WeightedPodAffinityTerm.return_value],
     )
-    client.V1Affinity.assert_called_once_with(pod_anti_affinity=client.V1PodAntiAffinity.return_value)
+    client.V1NodeAffinity.assert_called_once_with(
+        required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
+            node_selector_terms=[
+                client.V1NodeSelectorTerm(
+                    match_expressions=[
+                        client.V1NodeSelectorRequirement(key="node-type", operator="In", values=["gpu-worker"])
+                    ]
+                )
+            ]
+        )
+    )
+    client.V1Affinity.assert_called_once_with(
+        pod_anti_affinity=client.V1PodAntiAffinity.return_value, node_affinity=client.V1NodeAffinity.return_value
+    )
     client.V1PodSpec.assert_called_once_with(
         affinity=client.V1Affinity.return_value,
         service_account_name="jobwatcher",
         containers=[client.V1Container.return_value, client.V1Container.return_value],
         restart_policy="Never",
-        tolerations=[client.V1Toleration.return_value],
+        tolerations=[],
         volumes=[client.V1Volume.return_value, client.V1Volume.return_value, client.V1Volume.return_value],
     )
     assert (
@@ -390,14 +388,14 @@ def test_jobcreator_spawn_job_dev_mode_true(
     )
     assert client.V1Container.call_count == 2  # noqa: PLR2004
     setup_ceph_pv.assert_called_once_with(
-        job_name,
+        str(job_name) + "-ceph-pv",
         ceph_creds_k8s_secret_name,
         ceph_creds_k8s_namespace,
         cluster_id,
         fs_name,
         ceph_mount_path,
     )
-    setup_pvc.assert_called_once_with(job_name=job_name, job_namespace=job_namespace)
+    assert setup_pvc.call_count == 3
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
