@@ -75,6 +75,7 @@ def test_message_handler_on_json_decode_error(setup_queue_consumer):
         "Extra data: line 1 column 3 (char 2)",
     )
     MESSAGE_CALLBACK.assert_not_called()
+    
 
 
 def test_start_consuming(setup_queue_consumer):
