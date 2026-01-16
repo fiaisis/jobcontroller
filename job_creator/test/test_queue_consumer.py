@@ -58,6 +58,7 @@ def test_message_handler(setup_queue_consumer):
     with mock.patch("jobcreator.queue_consumer.logger") as logger:
         quc._message_handler(message)
 
+    print(logger.info.call_args_list)
     logger.info.assert_called_once_with("Message decoded as: %s", msg_obj)
     MESSAGE_CALLBACK.assert_called_once_with(msg_obj)
 
