@@ -91,12 +91,12 @@ def _select_runner_image(instrument: str) -> str:
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
     taints = []
-    affinity = {}
+    affinity = None
 
     match instrument.lower():
         case "imat":
