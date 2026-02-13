@@ -39,7 +39,7 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     client.CoreV1Api().create_persistent_volume(archive_pv)
 
 
-def _setup_pvc(pvc_name: str, pv_name: str, namespace: str) -> None:
+def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "ReadOnlyMany") -> None:
     """
     Set up a PVC for the given pvc_name and pv_name in the given namespace
     :param pvc_name: str, The name of the pvc to make
@@ -49,7 +49,7 @@ def _setup_pvc(pvc_name: str, pv_name: str, namespace: str) -> None:
     metadata = client.V1ObjectMeta(name=pvc_name)
     resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
     spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=["ReadOnlyMany"],
+        access_modes=[access_mode],
         resources=resources,
         volume_name=pv_name,
         storage_class_name="",
@@ -255,7 +255,7 @@ class JobCreator:
         manila_share_access_id: str,
         special_pvs: list[str],
         taints: list[dict[str, Any]],
-        affinity: dict[str, Any],
+        affinity: dict[str, Any] | None,
     ) -> None:
         """
         Takes the meta_data from the message and uses that dictionary for generating the deployment of the pod.
@@ -332,7 +332,7 @@ class JobCreator:
             pv_names.append(ceph_pv_name)
 
             ceph_pvc_name = f"{job_name}-ceph-pvc"
-            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace)
+            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_mode="ReadWriteMany")
             pvc_names.append(ceph_pvc_name)
 
             ceph_volume = client.V1Volume(

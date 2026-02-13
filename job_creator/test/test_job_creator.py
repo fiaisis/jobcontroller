@@ -63,13 +63,14 @@ def test_setup_pvc(client):
     pvc_name = mock.MagicMock()
     pv_name = mock.MagicMock()
     namespace = mock.MagicMock()
+    access_mode = mock.MagicMock()
 
-    _setup_pvc(pvc_name, pv_name, namespace)
+    _setup_pvc(pvc_name, pv_name, namespace, access_mode)
 
     client.V1ObjectMeta.assert_called_once_with(name=pvc_name)
     client.V1ResourceRequirements.assert_called_once_with(requests={"storage": "1000Gi"})
     client.V1PersistentVolumeClaimSpec.assert_called_once_with(
-        access_modes=["ReadOnlyMany"],
+        access_modes=[access_mode],
         resources=client.V1ResourceRequirements.return_value,
         volume_name=pv_name,
         storage_class_name="",
