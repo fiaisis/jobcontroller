@@ -255,7 +255,7 @@ class JobCreator:
         manila_share_access_id: str,
         special_pvs: list[str],
         taints: list[dict[str, Any]],
-        affinity: dict[str, Any],
+        affinity: dict[str, Any] | None,
     ) -> None:
         """
         Takes the meta_data from the message and uses that dictionary for generating the deployment of the pod.
