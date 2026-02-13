@@ -137,7 +137,7 @@ def get_org_image_name_and_version_from_image_path(image_path: str) -> tuple[str
     https://ghcr.io/fiaisis/mantid:6.9.1
     :return: Tuple(str, str, str), organisation name, image name, version tag in that order
     """
-    image_path_without_https = image_path.split("://")[-1]
+    image_path_without_https = image_path.rsplit("://", maxsplit=1)[-1]
     split_image_path = image_path_without_https.split("/")
     org_name = split_image_path[1]
     image_name, version = split_image_path[2].split(":")
@@ -152,7 +152,7 @@ def get_sha256_using_image_from_ghcr(user_image: str, version: str = "") -> str:
     :return: str, sha256 of the image e.g. "6e5f2d070bb67742f354948d68f837a740874d230714eaa476d35ab6ad56caec"
     """
     if ":" in version:
-        version = version.split(":")[-1]
+        version = version.rsplit(":", maxsplit=1)[-1]
 
     # Get token
     token_response = requests.get(f"https://ghcr.io/token?scope=repository:{user_image}:pull", timeout=5)
