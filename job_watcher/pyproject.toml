@@ -16,7 +16,7 @@ jobwatcher = "jobwatcher.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.15.2",
+    "ruff==0.15.4",
     "mypy==1.19.1",
     "pytest==9.0.2",
     "sqlalchemy-stubs==0.4",
