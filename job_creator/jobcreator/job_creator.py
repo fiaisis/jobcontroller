@@ -204,6 +204,11 @@ def _generate_affinities(node_affinity_dict: dict[str, Any] | None = None) -> cl
 
     # Create new node affinities based on the list
     if node_affinity_dict is not None and node_affinity_dict != {}:
+        expected_keys = ["key", "operator", "values"]
+        for expected_key in expected_keys:
+            if expected_key not in node_affinity_dict:
+                logger.error("Expected key for node affinity not found: %s. Spawning without node affinity.", expected_key)
+                return client.V1Affinity(pod_anti_affinity=anti_affinity)
         node_affinity = client.V1NodeAffinity(
             required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
                 node_selector_terms=[
