@@ -209,7 +209,11 @@ def _generate_affinities(node_affinity_dict: dict[str, Any] | None = None) -> cl
                 node_selector_terms=[
                     client.V1NodeSelectorTerm(
                         match_expressions=[
-                            client.V1NodeSelectorRequirement(key=node_affinity_dict["key"], operator=node_affinity_dict["operator"], values=node_affinity_dict["values"])
+                            client.V1NodeSelectorRequirement(
+                                key=node_affinity_dict["key"],
+                                operator=node_affinity_dict["operator"],
+                                values=node_affinity_dict["values"],
+                            )
                         ]
                     )
                 ]
