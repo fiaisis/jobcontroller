@@ -203,13 +203,13 @@ def _generate_affinities(node_affinity_dict: dict[str, Any] | None = None) -> cl
     )
 
     # Create new node affinities based on the list
-    if node_affinity_dict is not None:
+    if node_affinity_dict is not None and node_affinity_dict != {}:
         node_affinity = client.V1NodeAffinity(
             required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
                 node_selector_terms=[
                     client.V1NodeSelectorTerm(
                         match_expressions=[
-                            client.V1NodeSelectorRequirement(key="node-type", operator="In", values=["gpu-worker"])
+                            client.V1NodeSelectorRequirement(key=node_affinity_dict["key"], operator=node_affinity_dict["operator"], values=node_affinity_dict["values"])
                         ]
                     )
                 ]
