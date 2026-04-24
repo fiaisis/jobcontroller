@@ -11,6 +11,7 @@ from pathlib import Path
 import requests
 from kubernetes import config  # type: ignore[import-untyped]
 from kubernetes.config import ConfigException  # type: ignore[import-untyped]
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
@@ -59,6 +60,12 @@ def load_kubernetes_config() -> None:
             config.load_kube_config()
 
 
+@retry(
+    retry=retry_if_exception_type(OSError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=15),
+    reraise=True,
+)
 def create_ceph_mount_path_simple(
     user_number: str | None = None,
     experiment_number: str | None = None,
@@ -90,6 +97,12 @@ def create_ceph_mount_path_simple(
     return Path(mount_path) / ceph_path
 
 
+@retry(
+    retry=retry_if_exception_type(OSError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=15),
+    reraise=True,
+)
 def ensure_ceph_path_exists_autoreduction(ceph_path: Path) -> Path:
     """
     Takes a path that is intended to be on ceph and ensures that it will be correct for what we should mount and
@@ -144,6 +157,12 @@ def get_org_image_name_and_version_from_image_path(image_path: str) -> tuple[str
     return org_name, image_name, version  # Use organisation and image name without ghcr.io
 
 
+@retry(
+    retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    reraise=True,
+)
 def get_sha256_using_image_from_ghcr(user_image: str, version: str = "") -> str:
     """
     Take the user image and request from the github api the sha256 of the image tag
