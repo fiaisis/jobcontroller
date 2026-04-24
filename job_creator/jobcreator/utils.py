@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 from kubernetes import config  # type: ignore[import-untyped]
 from kubernetes.config import ConfigException  # type: ignore[import-untyped]
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
