@@ -409,9 +409,9 @@ class JobCreator:
                 )
                 volumes.append(client.V1Volume(name="imat-mount", persistent_volume_claim=imat_pvc_source))
                 volumes_mounts.append(client.V1VolumeMount(name="imat-mount", mount_path="/imat"))
-                # Because imat is special and uses mantid imaging to load large .tiff files, we need to ensure the /dev/shm
-                # is larger than 64mb. We do however have a soft-ish limit of around 32GiB on the size of datasets when
-                # doing this.
+                # Because imat is special and uses mantid imaging to load large .tiff files, we need to 
+                # ensure the /dev/shm is larger than 64mb. We do however have a soft-ish limit of around 
+                # 32GiB on the size of datasets when doing this.
                 volumes.append(
                     client.V1Volume(
                         name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
