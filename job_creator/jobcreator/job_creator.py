@@ -5,7 +5,7 @@ Communicate to a kubernetes API to spawn a pod with the metadata passed by messa
 from typing import Any
 
 from kubernetes import client  # type: ignore[import-untyped]
-from kubernetes.client.exceptions import ApiException
+from kubernetes.client.exceptions import ApiException # type: ignore[import-untyped]
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from jobcreator.utils import load_kubernetes_config, logger
@@ -125,7 +125,7 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
     return pv_name
 
 
-def _is_retryable_k8s_error(exc):
+def _is_retryable_k8s_error(exc) -> bool:
     """Only retry on transient K8s API errors, not on conflicts or client errors."""
     if isinstance(exc, ApiException):
         return exc.status in (429, 500, 502, 503, 504)
@@ -488,7 +488,7 @@ class JobCreator:
             raise
 
 
-    def _cleanup_resources(self, pv_names, pvc_names, namespace):
+    def _cleanup_resources(self, pv_names, pvc_names, namespace) -> None:
         """Best-effort cleanup of created K8s resources."""
         for pvc_name in pvc_names:
             try:
