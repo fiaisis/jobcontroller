@@ -5,8 +5,8 @@ Communicate to a kubernetes API to spawn a pod with the metadata passed by messa
 from typing import Any
 
 from kubernetes import client  # type: ignore[import-untyped]
-from kubernetes.client.exceptions import ApiException # type: ignore[import-untyped]
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+from kubernetes.client.exceptions import ApiException  # type: ignore[import-untyped]
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from jobcreator.utils import load_kubernetes_config, logger
 
@@ -486,7 +486,6 @@ class JobCreator:
             logger.exception("Failed to spawn job %s, cleaning up resources", job_name)
             self._cleanup_resources(pv_names, pvc_names, job_namespace)
             raise
-
 
     def _cleanup_resources(self, pv_names, pvc_names, namespace) -> None:
         """Best-effort cleanup of created K8s resources."""
