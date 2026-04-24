@@ -59,6 +59,12 @@ def load_kubernetes_config() -> None:
             config.load_kube_config()
 
 
+@retry(
+    retry=retry_if_exception_type(OSError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=15),
+    reraise=True,
+)
 def create_ceph_mount_path_simple(
     user_number: str | None = None,
     experiment_number: str | None = None,
@@ -90,6 +96,12 @@ def create_ceph_mount_path_simple(
     return Path(mount_path) / ceph_path
 
 
+@retry(
+    retry=retry_if_exception_type(OSError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=15),
+    reraise=True,
+)
 def ensure_ceph_path_exists_autoreduction(ceph_path: Path) -> Path:
     """
     Takes a path that is intended to be on ceph and ensures that it will be correct for what we should mount and
