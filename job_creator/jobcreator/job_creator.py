@@ -5,6 +5,8 @@ Communicate to a kubernetes API to spawn a pod with the metadata passed by messa
 from typing import Any
 
 from kubernetes import client  # type: ignore[import-untyped]
+from kubernetes.client.exceptions import ApiException
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 from jobcreator.utils import load_kubernetes_config, logger
 
@@ -123,6 +125,20 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
     return pv_name
 
 
+def _is_retryable_k8s_error(exc):
+    """Only retry on transient K8s API errors, not on conflicts or client errors."""
+    if isinstance(exc, ApiException):
+        return exc.status in (429, 500, 502, 503, 504)
+    # Also retry on connection-level errors
+    return isinstance(exc, (ConnectionError, TimeoutError))
+
+
+@retry(
+        retry=retry_if_exception(_is_retryable_k8s_error),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+)
 def _setup_ceph_pv(
     pv_name: str,
     ceph_creds_k8s_secret_name: str,
@@ -299,168 +315,190 @@ class JobCreator:
         pv_names = []
         pvc_names = []
 
-        # Setup Archive PV and PVC
-        archive_pv_name = f"{job_name}-archive-pv-smb"
-        _setup_smb_pv(
-            archive_pv_name,
-            "archive-creds",
-            job_namespace,
-            "//isisdatar55.isis.cclrc.ac.uk/inst$/",
-            ["noserverino", "_netdev", "vers=2.1"],
-        )
-        pv_names.append(archive_pv_name)
-
-        archive_pvc_name = f"{job_name}-archive-pvc"
-        _setup_pvc(archive_pvc_name, archive_pv_name, job_namespace)
-        pvc_names.append(archive_pvc_name)
-
-        # Setup Extras PV and PVC
-        extras_pv_name = _setup_extras_pv(
-            job_name=job_name,
-            secret_namespace=job_namespace,
-            manila_share_id=manila_share_id,
-            manila_share_access_id=manila_share_access_id,
-        )
-        pv_names.append(extras_pv_name)
-
-        extras_pvc_name = f"{job_name}-extras-pvc"
-        _setup_pvc(extras_pvc_name, extras_pv_name, job_namespace)
-        pvc_names.append(extras_pvc_name)
-
-        # Setup ceph PV and PVC
-        if not self.dev_mode:
-            ceph_pv_name = f"{job_name}-ceph-pv"
-            (
-                _setup_ceph_pv(
-                    ceph_pv_name,
-                    ceph_creds_k8s_secret_name,
-                    ceph_creds_k8s_namespace,
-                    cluster_id,
-                    fs_name,
-                    ceph_mount_path,
-                ),
+        try:
+            # Setup Archive PV and PVC
+            archive_pv_name = f"{job_name}-archive-pv-smb"
+            _setup_smb_pv(
+                archive_pv_name,
+                "archive-creds",
+                job_namespace,
+                "//isisdatar55.isis.cclrc.ac.uk/inst$/",
+                ["noserverino", "_netdev", "vers=2.1"],
             )
-            pv_names.append(ceph_pv_name)
+            pv_names.append(archive_pv_name)
 
-            ceph_pvc_name = f"{job_name}-ceph-pvc"
-            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_mode="ReadWriteMany")
-            pvc_names.append(ceph_pvc_name)
+            archive_pvc_name = f"{job_name}-archive-pvc"
+            _setup_pvc(archive_pvc_name, archive_pv_name, job_namespace)
+            pvc_names.append(archive_pvc_name)
 
-            ceph_volume = client.V1Volume(
-                name="ceph-mount",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=ceph_pvc_name,
-                    read_only=False,
-                ),
+            # Setup Extras PV and PVC
+            extras_pv_name = _setup_extras_pv(
+                job_name=job_name,
+                secret_namespace=job_namespace,
+                manila_share_id=manila_share_id,
+                manila_share_access_id=manila_share_access_id,
             )
-        else:
-            ceph_volume = client.V1Volume(
-                name="ceph-mount",
-                empty_dir=client.V1EmptyDirVolumeSource(size_limit="100Gi"),
-            )
+            pv_names.append(extras_pv_name)
 
-        # Create the Job
-        logger.info("Spawning job: %s", job_name)
+            extras_pvc_name = f"{job_name}-extras-pvc"
+            _setup_pvc(extras_pvc_name, extras_pv_name, job_namespace)
+            pvc_names.append(extras_pvc_name)
 
-        volumes = [
-            client.V1Volume(
-                name="archive-mount",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=archive_pvc_name,
-                    read_only=True,
-                ),
-            ),
-            ceph_volume,
-            client.V1Volume(
-                name="extras-mount",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=extras_pvc_name,
-                    read_only=True,
-                ),
-            ),
-        ]
-        volumes_mounts = [
-            client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
-            client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
-            client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
-        ]
-        # Setup special PVs and add them to the volume mounts
-        if "imat" in special_pvs:
-            _setup_imat_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
-            imat_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
-                claim_name=f"{job_name}-ndximat-pvc", read_only=True
-            )
-            volumes.append(client.V1Volume(name="imat-mount", persistent_volume_claim=imat_pvc_source))
-            volumes_mounts.append(client.V1VolumeMount(name="imat-mount", mount_path="/imat"))
-            # Because imat is special and uses mantid imaging to load large .tiff files, we need to ensure the /dev/shm
-            # is larger than 64mb. We do however have a soft-ish limit of around 32GiB on the size of datasets when
-            # doing this.
-            volumes.append(
-                client.V1Volume(
-                    name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
+            # Setup ceph PV and PVC
+            if not self.dev_mode:
+                ceph_pv_name = f"{job_name}-ceph-pv"
+                (
+                    _setup_ceph_pv(
+                        ceph_pv_name,
+                        ceph_creds_k8s_secret_name,
+                        ceph_creds_k8s_namespace,
+                        cluster_id,
+                        fs_name,
+                        ceph_mount_path,
+                    ),
                 )
+                pv_names.append(ceph_pv_name)
+
+                ceph_pvc_name = f"{job_name}-ceph-pvc"
+                _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_mode="ReadWriteMany")
+                pvc_names.append(ceph_pvc_name)
+
+                ceph_volume = client.V1Volume(
+                    name="ceph-mount",
+                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=ceph_pvc_name,
+                        read_only=False,
+                    ),
+                )
+            else:
+                ceph_volume = client.V1Volume(
+                    name="ceph-mount",
+                    empty_dir=client.V1EmptyDirVolumeSource(size_limit="100Gi"),
+                )
+
+            # Create the Job
+            logger.info("Spawning job: %s", job_name)
+
+            volumes = [
+                client.V1Volume(
+                    name="archive-mount",
+                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=archive_pvc_name,
+                        read_only=True,
+                    ),
+                ),
+                ceph_volume,
+                client.V1Volume(
+                    name="extras-mount",
+                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=extras_pvc_name,
+                        read_only=True,
+                    ),
+                ),
+            ]
+            volumes_mounts = [
+                client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
+                client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
+                client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
+            ]
+            # Setup special PVs and add them to the volume mounts
+            if "imat" in special_pvs:
+                _setup_imat_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
+                imat_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
+                    claim_name=f"{job_name}-ndximat-pvc", read_only=True
+                )
+                volumes.append(client.V1Volume(name="imat-mount", persistent_volume_claim=imat_pvc_source))
+                volumes_mounts.append(client.V1VolumeMount(name="imat-mount", mount_path="/imat"))
+                # Because imat is special and uses mantid imaging to load large .tiff files, we need to ensure the /dev/shm
+                # is larger than 64mb. We do however have a soft-ish limit of around 32GiB on the size of datasets when
+                # doing this.
+                volumes.append(
+                    client.V1Volume(
+                        name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
+                    )
+                )
+                volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
+
+            main_container = client.V1Container(
+                name=job_name,
+                image=runner_image,
+                args=[script],
+                env=[client.V1EnvVar(name="PYTHONUNBUFFERED", value="1")],
+                volume_mounts=volumes_mounts,
             )
-            volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
 
-        main_container = client.V1Container(
-            name=job_name,
-            image=runner_image,
-            args=[script],
-            env=[client.V1EnvVar(name="PYTHONUNBUFFERED", value="1")],
-            volume_mounts=volumes_mounts,
-        )
+            watcher_container = client.V1Container(
+                name="job-watcher",
+                image=f"ghcr.io/fiaisis/jobwatcher@sha256:{self.watcher_sha}",
+                env=[
+                    client.V1EnvVar(name="FIA_API_HOST", value=fia_api_host),
+                    client.V1EnvVar(name="FIA_API_API_KEY", value=fia_api_api_key),
+                    client.V1EnvVar(name="MAX_TIME_TO_COMPLETE_JOB", value=str(max_time_to_complete_job)),
+                    client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
+                    client.V1EnvVar(name="JOB_NAME", value=job_name),
+                    client.V1EnvVar(name="POD_NAME", value=job_name),
+                ],
+            )
 
-        watcher_container = client.V1Container(
-            name="job-watcher",
-            image=f"ghcr.io/fiaisis/jobwatcher@sha256:{self.watcher_sha}",
-            env=[
-                client.V1EnvVar(name="FIA_API_HOST", value=fia_api_host),
-                client.V1EnvVar(name="FIA_API_API_KEY", value=fia_api_api_key),
-                client.V1EnvVar(name="MAX_TIME_TO_COMPLETE_JOB", value=str(max_time_to_complete_job)),
-                client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
-                client.V1EnvVar(name="JOB_NAME", value=job_name),
-                client.V1EnvVar(name="POD_NAME", value=job_name),
-            ],
-        )
+            affinity = _generate_affinities(node_affinity_dict=affinity)
+            tolerations = _generate_tolerations_from_taints(taints)
 
-        affinity = _generate_affinities(node_affinity_dict=affinity)
-        tolerations = _generate_tolerations_from_taints(taints)
+            pod_spec = client.V1PodSpec(
+                affinity=affinity,
+                service_account_name="jobwatcher",
+                containers=[main_container, watcher_container],
+                restart_policy="Never",
+                tolerations=tolerations,
+                volumes=volumes,
+            )
 
-        pod_spec = client.V1PodSpec(
-            affinity=affinity,
-            service_account_name="jobwatcher",
-            containers=[main_container, watcher_container],
-            restart_policy="Never",
-            tolerations=tolerations,
-            volumes=volumes,
-        )
+            pod_metadata = client.V1ObjectMeta(
+                labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
+            )
 
-        pod_metadata = client.V1ObjectMeta(
-            labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
-        )
+            template = client.V1PodTemplateSpec(spec=pod_spec, metadata=pod_metadata)
 
-        template = client.V1PodTemplateSpec(spec=pod_spec, metadata=pod_metadata)
+            spec = client.V1JobSpec(
+                template=template,
+                backoff_limit=0,
+                ttl_seconds_after_finished=21600,  # 6 hours
+            )
 
-        spec = client.V1JobSpec(
-            template=template,
-            backoff_limit=0,
-            ttl_seconds_after_finished=21600,  # 6 hours
-        )
+            job_metadata = client.V1ObjectMeta(
+                name=job_name,
+                annotations={
+                    "job-id": str(job_id),
+                    "pvs": str(pv_names),
+                    "pvcs": str(pvc_names),
+                    "kubectl.kubernetes.io/default-container": main_container.name,
+                },
+            )
 
-        job_metadata = client.V1ObjectMeta(
-            name=job_name,
-            annotations={
-                "job-id": str(job_id),
-                "pvs": str(pv_names),
-                "pvcs": str(pvc_names),
-                "kubectl.kubernetes.io/default-container": main_container.name,
-            },
-        )
+            job = client.V1Job(
+                api_version="batch/v1",
+                kind="Job",
+                metadata=job_metadata,
+                spec=spec,
+            )
+            client.BatchV1Api().create_namespaced_job(namespace=job_namespace, body=job)
 
-        job = client.V1Job(
-            api_version="batch/v1",
-            kind="Job",
-            metadata=job_metadata,
-            spec=spec,
-        )
-        client.BatchV1Api().create_namespaced_job(namespace=job_namespace, body=job)
+        except Exception:
+            logger.exception("Failed to spawn job %s, cleaning up resources", job_name)
+            self._cleanup_resources(pv_names, pvc_names, job_namespace)
+            raise
+
+
+    def _cleanup_resources(self, pv_names, pvc_names, namespace):
+        """Best-effort cleanup of created K8s resources."""
+        for pvc_name in pvc_names:
+            try:
+                client.CoreV1Api().delete_namespaced_persistent_valume_claim(
+                    name=pvc_name, namespace=namespace
+                )
+            except client.ApiException:
+                logger.warning("Failed to cleanup PVC: %s", pvc_name)
+        for pv_name in pv_names:
+            try:
+                client.CoreV1Api().delete_persistent_volume(name=pv_name)
+            except client.ApiException:
+                logger.warning("Failed to cleanup PV: %s", pv_name)
