@@ -157,6 +157,12 @@ def get_org_image_name_and_version_from_image_path(image_path: str) -> tuple[str
     return org_name, image_name, version  # Use organisation and image name without ghcr.io
 
 
+@retry(
+    retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    reraise=True,
+)
 def get_sha256_using_image_from_ghcr(user_image: str, version: str = "") -> str:
     """
     Take the user image and request from the github api the sha256 of the image tag
