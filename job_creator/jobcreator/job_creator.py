@@ -125,7 +125,7 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
     return pv_name
 
 
-def _is_retryable_k8s_error(exc) -> bool:
+def _is_retryable_k8s_error(exc: ApiException) -> bool:
     """Only retry on transient K8s API errors, not on conflicts or client errors."""
     if isinstance(exc, ApiException):
         return exc.status in (429, 500, 502, 503, 504)
@@ -487,7 +487,7 @@ class JobCreator:
             self._cleanup_resources(pv_names, pvc_names, job_namespace)
             raise
 
-    def _cleanup_resources(self, pv_names, pvc_names, namespace) -> None:
+    def _cleanup_resources(self, pv_names: list[str], pvc_names: list[str], namespace: str) -> None:
         """Best-effort cleanup of created K8s resources."""
         for pvc_name in pvc_names:
             try:
