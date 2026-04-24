@@ -134,10 +134,10 @@ def _is_retryable_k8s_error(exc) -> bool:
 
 
 @retry(
-        retry=retry_if_exception(_is_retryable_k8s_error),
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=10),
-        reraise=True,
+    retry=retry_if_exception(_is_retryable_k8s_error),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    reraise=True,
 )
 def _setup_ceph_pv(
     pv_name: str,
@@ -409,8 +409,8 @@ class JobCreator:
                 )
                 volumes.append(client.V1Volume(name="imat-mount", persistent_volume_claim=imat_pvc_source))
                 volumes_mounts.append(client.V1VolumeMount(name="imat-mount", mount_path="/imat"))
-                # Because imat is special and uses mantid imaging to load large .tiff files, we need to 
-                # ensure the /dev/shm is larger than 64mb. We do however have a soft-ish limit of around 
+                # Because imat is special and uses mantid imaging to load large .tiff files, we need to
+                # ensure the /dev/shm is larger than 64mb. We do however have a soft-ish limit of around
                 # 32GiB on the size of datasets when doing this.
                 volumes.append(
                     client.V1Volume(
@@ -492,9 +492,7 @@ class JobCreator:
         """Best-effort cleanup of created K8s resources."""
         for pvc_name in pvc_names:
             try:
-                client.CoreV1Api().delete_namespaced_persistent_valume_claim(
-                    name=pvc_name, namespace=namespace
-                )
+                client.CoreV1Api().delete_namespaced_persistent_valume_claim(name=pvc_name, namespace=namespace)
             except client.ApiException:
                 logger.warning("Failed to cleanup PVC: %s", pvc_name)
         for pv_name in pv_names:
