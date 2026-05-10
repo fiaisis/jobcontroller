@@ -29,6 +29,11 @@ test = [
     "pytest-random-order==1.2.0"
 ]
 
+all = [
+    "jobcreator[formatting]",
+    "jobcreator[test]",
+]
+
 [tool.setuptools]
 packages = ["jobcreator"]
 
