@@ -127,7 +127,7 @@ def process_simple_message(message: dict[str, Any]) -> None:
         # Attempt to load from a json string list
         taints = json.loads(str(taints)) if taints is not None else []
         affinity = message.get("affinity")
-        affinity = json.loads(str(taints)) if affinity is not None else {}
+        affinity = json.loads(str(affinity)) if affinity is not None else {}
 
         if not isinstance(job_id, int):
             raise ValueError("job_id must be an integer")

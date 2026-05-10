@@ -254,7 +254,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
     manila_share_access_id = mock.MagicMock()
     special_pvs = mock.MagicMock()
     taints = mock.MagicMock()
-    affinity = mock.MagicMock()
+    affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
 
     job_creator.spawn_job(
         job_name,
