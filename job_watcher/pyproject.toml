@@ -30,6 +30,11 @@ test = [
     "pytest-random-order==1.2.0"
 ]
 
+all = [
+    "jobwatcher[formatting]",
+    "jobwatcher[test]",
+]
+
 [tool.setuptools]
 packages = ["jobwatcher"]
 
