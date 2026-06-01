@@ -103,7 +103,9 @@ def _select_runner_image(instrument: str, additional_values: dict[str, Any]) -> 
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(instrument: str, additional_values: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+def _select_taints_and_affinity(
+    instrument: str, additional_values: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
