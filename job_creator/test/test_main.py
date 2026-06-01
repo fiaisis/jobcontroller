@@ -1,8 +1,10 @@
+import importlib
+import os
 import unittest
 from unittest import mock
-import os
-import importlib
+
 import pytest
+
 # Mock environment variables before importing main
 with mock.patch.dict(
     os.environ, {"DEFAULT_RUNNER_SHA": "default-sha", "IMAGING_RUNNER_SHA": "imaging-sha", "WATCHER_SHA": "watcher-sha"}
@@ -11,17 +13,16 @@ with mock.patch.dict(
         _generate_special_pvs,
         _select_runner_image,
         _select_taints_and_affinity,
-        process_simple_message,
-        process_rerun_message,
+        main,
         process_autoreduction_message,
         process_message,
+        process_rerun_message,
+        process_simple_message,
         write_readiness_probe_file,
-        main,
     )
 
 
 import jobcreator.main
-
 
 EXPECTED_EXPERIMENT_JOB_ID = 2
 EXPECTED_RERUN_JOB_ID = 100
@@ -30,7 +31,6 @@ EXPECTED_AUTO_CALL_COUNT = 2
 
 
 class TestMain(unittest.TestCase):
-
     def test_generate_special_pvs_imat_with_ngem(self):
         additional_values = {"ngem": "true"}
         pvs = _generate_special_pvs("imat", additional_values)
@@ -62,8 +62,9 @@ class TestMain(unittest.TestCase):
         assert "default-sha" in image
 
     def test_select_runner_image_imat_without_ngem(self):
-        with mock.patch("jobcreator.main.IMAGING_RUNNER_SHA", "imaging-sha"), mock.patch(
-            "jobcreator.main.IMAGING_RUNNER", "ghcr.io/fiaisis/mantidimaging@sha256:imaging-sha"
+        with (
+            mock.patch("jobcreator.main.IMAGING_RUNNER_SHA", "imaging-sha"),
+            mock.patch("jobcreator.main.IMAGING_RUNNER", "ghcr.io/fiaisis/mantidimaging@sha256:imaging-sha"),
         ):
             additional_values = {"ngem": "false"}
             image = _select_runner_image("imat", additional_values)
@@ -243,14 +244,16 @@ class TestMain(unittest.TestCase):
     @mock.patch("jobcreator.main.main")
     def test_main_coverage(self, mock_main):
         # Test missing DEFAULT_RUNNER_SHA
-        with mock.patch.dict(os.environ, {"WATCHER_SHA": "watcher-sha"}, clear=True), pytest.raises(
-            OSError, match="DEFAULT_RUNNER_SHA"
+        with (
+            mock.patch.dict(os.environ, {"WATCHER_SHA": "watcher-sha"}, clear=True),
+            pytest.raises(OSError, match="DEFAULT_RUNNER_SHA"),
         ):
             importlib.reload(jobcreator.main)
 
         # Test missing WATCHER_SHA
-        with mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha"}, clear=True), pytest.raises(
-            OSError, match="WATCHER_SHA"
+        with (
+            mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha"}, clear=True),
+            pytest.raises(OSError, match="WATCHER_SHA"),
         ):
             importlib.reload(jobcreator.main)
 
@@ -271,6 +274,5 @@ class TestMain(unittest.TestCase):
             # We already have mock_main from the decorator
             source = "if __name__ == '__main__': main()"
             exec_globals = {"main": mock_main, "__name__": "__main__"}
-            # noqa: S102
             exec(source, exec_globals)  # noqa: S102
             mock_main.assert_called_once()

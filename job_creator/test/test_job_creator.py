@@ -4,15 +4,15 @@ from unittest.mock import call
 
 from jobcreator.job_creator import (
     JobCreator,
+    _generate_affinities,
+    _generate_tolerations_from_taints,
     _setup_ceph_pv,
     _setup_extras_pv,
     _setup_extras_pvc,
+    _setup_imat_pv_and_pvcs,
+    _setup_ngem_pv_and_pvcs,
     _setup_pvc,
     _setup_smb_pv,
-    _generate_tolerations_from_taints,
-    _generate_affinities,
-    _setup_ngem_pv_and_pvcs,
-    _setup_imat_pv_and_pvcs,
 )
 
 
@@ -350,9 +350,9 @@ def test_jobcreator_spawn_job_ngem(
     setup_ngem_pv.assert_called_once()
     # Check that ngem volume and volume mount were added
     # We check if V1Volume was called with name="ngem-mount"
-    assert any(c.kwargs.get('name') == "ngem-mount" for c in client.V1Volume.call_args_list)
+    assert any(c.kwargs.get("name") == "ngem-mount" for c in client.V1Volume.call_args_list)
     # Check if V1VolumeMount was called with name="ngem-mount"
-    assert any(c.kwargs.get('name') == "ngem-mount" for c in client.V1VolumeMount.call_args_list)
+    assert any(c.kwargs.get("name") == "ngem-mount" for c in client.V1VolumeMount.call_args_list)
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")

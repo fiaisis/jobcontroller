@@ -103,7 +103,9 @@ def _select_runner_image(instrument: str, additional_values: dict) -> str:
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(instrument: str, additional_values: dict) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+def _select_taints_and_affinity(
+    instrument: str, additional_values: dict
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
@@ -198,8 +200,12 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             rb_number=str(message["rb_number"]),
         )
 
-        special_pvs = _generate_special_pvs(instrument=message["instrument"], additional_values=message.get("additional_values", {}))
-        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"], additional_values=message.get("additional_values", {}))
+        special_pvs = _generate_special_pvs(
+            instrument=message["instrument"], additional_values=message.get("additional_values", {})
+        )
+        taints, affinity = _select_taints_and_affinity(
+            instrument=message["instrument"], additional_values=message.get("additional_values", {})
+        )
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
@@ -256,7 +262,9 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
         }
 
         special_pvs = _generate_special_pvs(instrument=instrument_name, additional_values=message["additional_values"])
-        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"], additional_values=message["additional_values"])
+        taints, affinity = _select_taints_and_affinity(
+            instrument=message["instrument"], additional_values=message["additional_values"]
+        )
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{filename.lower()}-{uuid.uuid4().hex!s}"
