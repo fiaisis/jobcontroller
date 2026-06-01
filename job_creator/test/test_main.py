@@ -20,6 +20,15 @@ with mock.patch.dict(
     )
 
 
+import jobcreator.main
+
+
+EXPECTED_EXPERIMENT_JOB_ID = 2
+EXPECTED_RERUN_JOB_ID = 100
+EXPECTED_AUTOREDUCTION_JOB_ID = 200
+EXPECTED_AUTO_CALL_COUNT = 2
+
+
 class TestMain(unittest.TestCase):
 
     def test_generate_special_pvs_imat_with_ngem(self):
@@ -123,7 +132,7 @@ class TestMain(unittest.TestCase):
         mock_job_creator.spawn_job.assert_called_once()
         kwargs = mock_job_creator.spawn_job.call_args.kwargs
         assert "run-owner67890-requested-" in kwargs["job_name"]
-        assert kwargs["job_id"] == 2
+        assert kwargs["job_id"] == EXPECTED_EXPERIMENT_JOB_ID
 
     @mock.patch("jobcreator.main.logger")
     def test_process_simple_message_invalid_job_id(self, mock_logger):
@@ -149,7 +158,7 @@ class TestMain(unittest.TestCase):
         mock_job_creator.spawn_job.assert_called_once()
         kwargs = mock_job_creator.spawn_job.call_args.kwargs
         assert "run-data.nxs-" in kwargs["job_name"]
-        assert kwargs["job_id"] == 100
+        assert kwargs["job_id"] == EXPECTED_RERUN_JOB_ID
         assert kwargs["special_pvs"] == ["imat"]
 
     @mock.patch("jobcreator.main.JOB_CREATOR")
@@ -176,7 +185,7 @@ class TestMain(unittest.TestCase):
         mock_job_creator.spawn_job.assert_called_once()
         kwargs = mock_job_creator.spawn_job.call_args.kwargs
         assert "run-data-" in kwargs["job_name"]
-        assert kwargs["job_id"] == 200
+        assert kwargs["job_id"] == EXPECTED_AUTOREDUCTION_JOB_ID
         assert kwargs["script"] == "generated_script"
 
     @mock.patch("jobcreator.main.process_simple_message")
@@ -190,7 +199,7 @@ class TestMain(unittest.TestCase):
         process_message({"job_type": "autoreduction"})
         mock_auto.assert_called_once()
         process_message({})  # defaults to autoreduction
-        assert mock_auto.call_count == 2
+        assert mock_auto.call_count == EXPECTED_AUTO_CALL_COUNT
 
     @mock.patch("jobcreator.main.time")
     @mock.patch("jobcreator.main.Path")
@@ -233,14 +242,16 @@ class TestMain(unittest.TestCase):
 
     @mock.patch("jobcreator.main.main")
     def test_main_coverage(self, mock_main):
-        import jobcreator.main
-
         # Test missing DEFAULT_RUNNER_SHA
-        with mock.patch.dict(os.environ, {"WATCHER_SHA": "watcher-sha"}, clear=True), pytest.raises(OSError):
+        with mock.patch.dict(os.environ, {"WATCHER_SHA": "watcher-sha"}, clear=True), pytest.raises(
+            OSError, match="DEFAULT_RUNNER_SHA"
+        ):
             importlib.reload(jobcreator.main)
 
         # Test missing WATCHER_SHA
-        with mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha"}, clear=True), pytest.raises(OSError):
+        with mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha"}, clear=True), pytest.raises(
+            OSError, match="WATCHER_SHA"
+        ):
             importlib.reload(jobcreator.main)
 
         # Test DEV_MODE branch
@@ -261,5 +272,5 @@ class TestMain(unittest.TestCase):
             source = "if __name__ == '__main__': main()"
             exec_globals = {"main": mock_main, "__name__": "__main__"}
             # noqa: S102
-            exec(source, exec_globals)
+            exec(source, exec_globals)  # noqa: S102
             mock_main.assert_called_once()
