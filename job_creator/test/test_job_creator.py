@@ -159,6 +159,9 @@ def test_setup_extras_pv(client):
     client.V1SecretReference.assert_called_once_with(name="manila-creds", namespace=secret_namespace)
 
 
+EXPECTED_TOLERATIONS_COUNT = 2
+
+
 @mock.patch("jobcreator.job_creator.client")
 def test_generate_tolerations_from_taints(client):
     taints = [
@@ -167,7 +170,7 @@ def test_generate_tolerations_from_taints(client):
     ]
     tolerations = _generate_tolerations_from_taints(taints)
 
-    assert len(tolerations) == 2
+    assert len(tolerations) == EXPECTED_TOLERATIONS_COUNT
     client.V1Toleration.assert_has_calls(
         [
             call(key="key1", value="value1", operator="Equal", effect="NoSchedule"),
@@ -327,7 +330,7 @@ def test_jobcreator_spawn_job_ngem(
         job_name=job_name,
         script=script,
         job_namespace=job_namespace,
-        ceph_creds_k8s_secret_name="secret",
+        ceph_creds_k8s_secret_name="some-secret-name",  # noqa: S106
         ceph_creds_k8s_namespace="ns",
         cluster_id="id",
         fs_name="fs",
