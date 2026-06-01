@@ -187,7 +187,7 @@ def test_generate_affinities_none(client):
 @mock.patch("jobcreator.job_creator.client")
 def test_generate_affinities_missing_key(client, logger):
     node_affinity_dict = {"key": "some-key", "operator": "In"}  # missing "values"
-    affinity = _generate_affinities(node_affinity_dict)
+    _generate_affinities(node_affinity_dict)
     logger.error.assert_called_once()
     client.V1Affinity.assert_called_once_with(pod_anti_affinity=client.V1PodAntiAffinity.return_value)
 
@@ -195,7 +195,7 @@ def test_generate_affinities_missing_key(client, logger):
 @mock.patch("jobcreator.job_creator.client")
 def test_generate_affinities_valid(client):
     node_affinity_dict = {"key": "some-key", "operator": "In", "values": ["val1"]}
-    affinity = _generate_affinities(node_affinity_dict)
+    _generate_affinities(node_affinity_dict)
     client.V1Affinity.assert_called_once_with(
         pod_anti_affinity=client.V1PodAntiAffinity.return_value, node_affinity=client.V1NodeAffinity.return_value
     )

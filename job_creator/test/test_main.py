@@ -268,7 +268,7 @@ class TestMain(unittest.TestCase):
         }):
             # Use reload to trigger imports and most lines
             with mock.patch("jobcreator.main.__name__", "__main__"):
-                with mock.patch("jobcreator.main.main") as mock_inner_main:
+                with mock.patch("jobcreator.main.main"):
                     importlib.reload(jobcreator.main)
                     
             # Explicitly execute the if __name__ == "__main__": line and the main() call
