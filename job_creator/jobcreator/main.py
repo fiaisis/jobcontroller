@@ -50,7 +50,7 @@ JOB_CREATOR: JobCreator | None = None
 
 
 def get_job_creator() -> JobCreator:
-    global JOB_CREATOR
+    global JOB_CREATOR  # noqa: PLW0603
     if JOB_CREATOR is None:
         if WATCHER_SHA is None:
             raise OSError("WATCHER_SHA not set in the environment, please add it.")
