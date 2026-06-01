@@ -5,9 +5,13 @@ from unittest import mock
 
 import pytest
 
-# Mock environment variables before importing main
-with mock.patch.dict(
-    os.environ, {"DEFAULT_RUNNER_SHA": "default-sha", "IMAGING_RUNNER_SHA": "imaging-sha", "WATCHER_SHA": "watcher-sha"}
+# Mock environment variables and kubernetes config before importing main
+with (
+    mock.patch.dict(
+        os.environ,
+        {"DEFAULT_RUNNER_SHA": "default-sha", "IMAGING_RUNNER_SHA": "imaging-sha", "WATCHER_SHA": "watcher-sha"},
+    ),
+    mock.patch("jobcreator.utils.load_kubernetes_config"),
 ):
     from jobcreator.main import (
         _generate_special_pvs,
@@ -246,6 +250,7 @@ class TestMain(unittest.TestCase):
         # Test missing DEFAULT_RUNNER_SHA
         with (
             mock.patch.dict(os.environ, {"WATCHER_SHA": "watcher-sha"}, clear=True),
+            mock.patch("jobcreator.utils.load_kubernetes_config"),
             pytest.raises(OSError, match="DEFAULT_RUNNER_SHA"),
         ):
             importlib.reload(jobcreator.main)
@@ -253,19 +258,26 @@ class TestMain(unittest.TestCase):
         # Test missing WATCHER_SHA
         with (
             mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha"}, clear=True),
+            mock.patch("jobcreator.utils.load_kubernetes_config"),
             pytest.raises(OSError, match="WATCHER_SHA"),
         ):
             importlib.reload(jobcreator.main)
 
         # Test DEV_MODE branch
-        with mock.patch.dict(
-            os.environ, {"DEFAULT_RUNNER_SHA": "default-sha", "WATCHER_SHA": "watcher-sha", "DEV_MODE": "True"}
+        with (
+            mock.patch.dict(
+                os.environ, {"DEFAULT_RUNNER_SHA": "default-sha", "WATCHER_SHA": "watcher-sha", "DEV_MODE": "True"}
+            ),
+            mock.patch("jobcreator.utils.load_kubernetes_config"),
         ):
             importlib.reload(jobcreator.main)
             assert jobcreator.main.DEV_MODE
 
         # Test __name__ == "__main__" block
-        with mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha", "WATCHER_SHA": "watcher-sha"}):
+        with (
+            mock.patch.dict(os.environ, {"DEFAULT_RUNNER_SHA": "default-sha", "WATCHER_SHA": "watcher-sha"}),
+            mock.patch("jobcreator.utils.load_kubernetes_config"),
+        ):
             # Use reload to trigger imports and most lines
             with mock.patch("jobcreator.main.__name__", "__main__"), mock.patch("jobcreator.main.main"):
                 importlib.reload(jobcreator.main)
