@@ -46,7 +46,16 @@ CONSUMER_USERNAME = os.environ.get("QUEUE_USER", "")
 CONSUMER_PASSWORD = os.environ.get("QUEUE_PASSWORD", "")
 REDUCE_USER_ID = os.environ.get("REDUCE_USER_ID", "")
 JOB_NAMESPACE = os.environ.get("JOB_NAMESPACE", "fia")
-JOB_CREATOR = JobCreator(dev_mode=DEV_MODE, watcher_sha=WATCHER_SHA)
+JOB_CREATOR: JobCreator | None = None
+
+
+def get_job_creator() -> JobCreator:
+    global JOB_CREATOR
+    if JOB_CREATOR is None:
+        if WATCHER_SHA is None:
+            raise OSError("WATCHER_SHA not set in the environment, please add it.")
+        JOB_CREATOR = JobCreator(dev_mode=DEV_MODE, watcher_sha=WATCHER_SHA)
+    return JOB_CREATOR
 
 CEPH_CREDS_SECRET_NAME = os.environ.get("CEPH_CREDS_SECRET_NAME", "ceph-creds")
 CEPH_CREDS_SECRET_NAMESPACE = os.environ.get("CEPH_CREDS_SECRET_NAMESPACE", "fia")
@@ -161,7 +170,7 @@ def process_simple_message(message: dict[str, Any]) -> None:
             {"user_number": str(user_number)} if user_number else {"experiment_number": str(experiment_number)}
         )
         ceph_mount_path = create_ceph_mount_path_simple(**ceph_mount_path_kwargs)
-        JOB_CREATOR.spawn_job(
+        get_job_creator().spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
@@ -209,7 +218,7 @@ def process_rerun_message(message: dict[str, Any]) -> None:
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
-        JOB_CREATOR.spawn_job(
+        get_job_creator().spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
@@ -274,7 +283,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             autoreduction_request=autoreduction_request,
         )
         ceph_mount_path = create_ceph_mount_path_autoreduction(instrument_name, rb_number)
-        JOB_CREATOR.spawn_job(
+        get_job_creator().spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,

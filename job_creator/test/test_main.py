@@ -99,10 +99,11 @@ class TestMain(unittest.TestCase):
         assert taints == []
         assert affinity is None
 
-    @mock.patch("jobcreator.main.JOB_CREATOR")
+    @mock.patch("jobcreator.main.get_job_creator")
     @mock.patch("jobcreator.main.create_ceph_mount_path_simple")
     @mock.patch("jobcreator.main.find_sha256_of_image")
-    def test_process_simple_message_user_number(self, mock_find_sha, mock_create_path, mock_job_creator):
+    def test_process_simple_message_user_number(self, mock_find_sha, mock_create_path, mock_get_job_creator):
+        mock_job_creator = mock_get_job_creator.return_value
         mock_find_sha.return_value = "sha256:123"
         mock_create_path.return_value = "/ceph/path"
         message = {
@@ -121,10 +122,11 @@ class TestMain(unittest.TestCase):
         assert kwargs["runner_image"] == "sha256:123"
         assert kwargs["job_id"] == 1
 
-    @mock.patch("jobcreator.main.JOB_CREATOR")
+    @mock.patch("jobcreator.main.get_job_creator")
     @mock.patch("jobcreator.main.create_ceph_mount_path_simple")
     @mock.patch("jobcreator.main.find_sha256_of_image")
-    def test_process_simple_message_experiment_number(self, mock_find_sha, mock_create_path, mock_job_creator):
+    def test_process_simple_message_experiment_number(self, mock_find_sha, mock_create_path, mock_get_job_creator):
+        mock_job_creator = mock_get_job_creator.return_value
         mock_find_sha.return_value = "sha256:123"
         mock_create_path.return_value = "/ceph/path"
         message = {
@@ -145,10 +147,11 @@ class TestMain(unittest.TestCase):
         process_simple_message(message)
         mock_logger.exception.assert_called_once()
 
-    @mock.patch("jobcreator.main.JOB_CREATOR")
+    @mock.patch("jobcreator.main.get_job_creator")
     @mock.patch("jobcreator.main.create_ceph_mount_path_autoreduction")
     @mock.patch("jobcreator.main.find_sha256_of_image")
-    def test_process_rerun_message(self, mock_find_sha, mock_create_path, mock_job_creator):
+    def test_process_rerun_message(self, mock_find_sha, mock_create_path, mock_get_job_creator):
+        mock_job_creator = mock_get_job_creator.return_value
         mock_find_sha.return_value = "sha256:rerun"
         mock_create_path.return_value = "/ceph/autoreduction"
         message = {
@@ -166,11 +169,12 @@ class TestMain(unittest.TestCase):
         assert kwargs["job_id"] == EXPECTED_RERUN_JOB_ID
         assert kwargs["special_pvs"] == ["imat"]
 
-    @mock.patch("jobcreator.main.JOB_CREATOR")
+    @mock.patch("jobcreator.main.get_job_creator")
     @mock.patch("jobcreator.main.post_autoreduction_job")
     @mock.patch("jobcreator.main.create_ceph_mount_path_autoreduction")
     @mock.patch("jobcreator.main.find_sha256_of_image")
-    def test_process_autoreduction_message(self, mock_find_sha, mock_create_path, mock_post_job, mock_job_creator):
+    def test_process_autoreduction_message(self, mock_find_sha, mock_create_path, mock_post_job, mock_get_job_creator):
+        mock_job_creator = mock_get_job_creator.return_value
         mock_find_sha.return_value = "sha256:auto"
         mock_create_path.return_value = "/ceph/auto"
         mock_post_job.return_value = ("generated_script", 200)
