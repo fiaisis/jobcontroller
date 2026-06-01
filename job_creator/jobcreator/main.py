@@ -50,6 +50,8 @@ JOB_CREATOR: JobCreator | None = None
 
 
 def get_job_creator() -> JobCreator:
+    """Use this Singleton pattern to allow for trivial mocking within testing infrastructure, not strictly needed but
+    trivialises test implementation for mocking out the JobCreator."""
     global JOB_CREATOR  # noqa: PLW0603
     if JOB_CREATOR is None:
         if WATCHER_SHA is None:
