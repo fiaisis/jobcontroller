@@ -59,7 +59,7 @@ MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e
 MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", str(60 * 60 * 6)))
 
 
-def _generate_special_pvs(instrument: str, additional_values: dict) -> list[str]:
+def _generate_special_pvs(instrument: str, additional_values: dict[str, Any]) -> list[str]:
     """
     A generic function for, based on passed args, returning what the special persistent volumes should be.
     """
@@ -84,7 +84,7 @@ def _generate_special_pvs(instrument: str, additional_values: dict) -> list[str]
     return special_pvs
 
 
-def _select_runner_image(instrument: str, additional_values: dict) -> str:
+def _select_runner_image(instrument: str, additional_values: dict[str, Any]) -> str:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
@@ -103,9 +103,7 @@ def _select_runner_image(instrument: str, additional_values: dict) -> str:
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(
-    instrument: str, additional_values: dict
-) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+def _select_taints_and_affinity(instrument: str, additional_values: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
