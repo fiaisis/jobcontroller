@@ -402,12 +402,22 @@ class JobCreator:
             )
             volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
 
+        # Decide whether this is a GPU workload. IMAT jobs run mantid imaging on GPU nodes and need
+        # the NVIDIA runtime + a GPU resource request so the GPU Operator injects the matching
+        # userspace driver libraries (libcuda.so.*) into the container.
+        gpu_job = "imat" in special_pvs
+
         main_container = client.V1Container(
             name=job_name,
             image=runner_image,
             args=[script],
             env=[client.V1EnvVar(name="PYTHONUNBUFFERED", value="1")],
             volume_mounts=volumes_mounts,
+            resources=client.V1ResourceRequirements(
+                limits={"nvidia.com/gpu": "1"},
+            )
+            if gpu_job
+            else None,
         )
 
         watcher_container = client.V1Container(
@@ -433,6 +443,7 @@ class JobCreator:
             restart_policy="Never",
             tolerations=tolerations,
             volumes=volumes,
+            runtime_class_name="nvidia" if gpu_job else None,
         )
 
         pod_metadata = client.V1ObjectMeta(
