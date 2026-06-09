@@ -267,6 +267,11 @@ class JobCreator:
         special_pvs: list[str],
         taints: list[dict[str, Any]],
         affinity: dict[str, Any] | None,
+        queue_host: str,
+        queue_user: str,
+        queue_password: str,
+        failure_queue_name: str,
+        filepath: str | None = None,
     ) -> None:
         """
         Takes the meta_data from the message and uses that dictionary for generating the deployment of the pod.
@@ -430,6 +435,10 @@ class JobCreator:
                 client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
                 client.V1EnvVar(name="JOB_NAME", value=job_name),
                 client.V1EnvVar(name="POD_NAME", value=job_name),
+                client.V1EnvVar(name="QUEUE_HOST", value=queue_host),
+                client.V1EnvVar(name="QUEUE_USER", value=queue_user),
+                client.V1EnvVar(name="QUEUE_PASSWORD", value=queue_password),
+                client.V1EnvVar(name="FAILURE_QUEUE_NAME", value=failure_queue_name),
             ],
         )
 
@@ -467,6 +476,8 @@ class JobCreator:
                 "kubectl.kubernetes.io/default-container": main_container.name,
             },
         )
+        if filepath:
+            job_metadata.annotations["filepath"] = filepath
 
         job = client.V1Job(
             api_version="batch/v1",

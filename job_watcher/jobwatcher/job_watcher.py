@@ -12,6 +12,7 @@ from json import JSONDecodeError
 from time import sleep
 from typing import Any, Literal, cast
 
+import pika  # type: ignore[import-untyped]
 import requests
 from kubernetes import client  # type: ignore[import-untyped]
 from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
@@ -21,6 +22,10 @@ from jobwatcher.utils import logger
 StateString = Literal["SUCCESSFUL", "UNSUCCESSFUL", "ERROR", "NOT_STARTED"]
 FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
+QUEUE_HOST = os.environ.get("QUEUE_HOST", "localhost")
+QUEUE_USER = os.environ.get("QUEUE_USER", "guest")
+QUEUE_PASSWORD = os.environ.get("QUEUE_PASSWORD", "guest")
+FAILURE_QUEUE_NAME = os.environ.get("FAILURE_QUEUE_NAME", "failed-watched-files")
 
 
 def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
@@ -185,8 +190,34 @@ class JobWatcher:
             self.done_watching = True
         elif self.check_for_pod_stalled():
             logger.info("Job has stalled out...")
+            self.resubmit_job()
             self.cleanup_job()
             self.done_watching = True
+
+    def resubmit_job(self) -> None:
+        """
+        Resubmit the job by pushing its filepath onto the failure queue if it exists.
+        """
+        if self.job is None:
+            raise AttributeError("Job must be set in the JobWatcher before calling this function.")
+        filepath = self.job.metadata.annotations.get("filepath")
+        if not filepath:
+            logger.info("No filepath annotation found, skipping resubmission.")
+            return
+
+        logger.info("Resubmitting job via failure queue with filepath: %s", filepath)
+        credentials = pika.PlainCredentials(username=QUEUE_USER, password=QUEUE_PASSWORD)
+        connection_parameters = pika.ConnectionParameters(QUEUE_HOST, 5672, credentials=credentials)
+        try:
+            connection = pika.BlockingConnection(connection_parameters)
+            channel = connection.channel()
+            channel.queue_declare(FAILURE_QUEUE_NAME, durable=True, arguments={"x-queue-type": "quorum"})
+            channel.basic_publish(exchange="", routing_key=FAILURE_QUEUE_NAME, body=filepath.encode())
+            connection.close()
+            logger.info("Successfully published filepath to failure queue")
+        except Exception as exception:
+            logger.error("Failed to publish to failure queue: %s", str(exception))
+            logger.exception(exception)
 
     def get_container_status(self) -> V1ContainerStatus | None:
         """
@@ -225,7 +256,7 @@ class JobWatcher:
     def check_for_pod_stalled(self) -> bool:
         """
         The way this checks if a job is stalled is by checking if there has been no new
-        logs for the last 30 minutes, or if the job has taken over 6 hours to complete.
+        logs for the last 60 minutes, or if the job has taken over 6 hours to complete.
         Long term 6 hours may be too little so this is configurable using the
         environment variables.
         :return: bool, True if pod is stalled, False if pod is not stalled.
@@ -233,21 +264,21 @@ class JobWatcher:
         if self.pod is None:
             raise AttributeError("Pod must be set in the JobWatcher before calling this function.")
         v1_core = client.CoreV1Api()
-        seconds_in_30_minutes = 60 * 30
-        # If pod is younger than 30 minutes it can't be stalled for 30 minutes, if older, then check.
+        seconds_in_60_minutes = 60 * 60
+        # If pod is younger than 60 minutes it can't be stalled for 60 minutes, if older, then check.
         if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
-            seconds=seconds_in_30_minutes
+            seconds=seconds_in_60_minutes
         ):
             logs = v1_core.read_namespaced_pod_log(
                 name=self.pod.metadata.name,
                 namespace=self.pod.metadata.namespace,
                 timestamps=True,
                 tail_lines=1,
-                since_seconds=seconds_in_30_minutes,
+                since_seconds=seconds_in_60_minutes,
                 container=self.container_name,
             )
             if logs == "":
-                logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_30_minutes)
+                logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_60_minutes)
                 return True
         if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
             seconds=self.max_time_to_complete

@@ -223,6 +223,7 @@ def test_check_for_changes_job_complete_and_stalled(job_watcher_maker):
     jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.update_current_container_info = mock.MagicMock()
     jw.cleanup_job = mock.MagicMock()
+    jw.resubmit_job = mock.MagicMock()
     jw.check_for_job_complete = mock.MagicMock(return_value=True)
     jw.check_for_pod_stalled = mock.MagicMock(return_value=True)
     jw.done_watching = False
@@ -231,6 +232,7 @@ def test_check_for_changes_job_complete_and_stalled(job_watcher_maker):
 
     jw.update_current_container_info.assert_called_once_with()
     jw.cleanup_job.assert_called_once_with()
+    jw.resubmit_job.assert_not_called()
     jw.check_for_job_complete.assert_called_once_with()
     jw.check_for_pod_stalled.assert_not_called()
     assert jw.done_watching is True
@@ -241,6 +243,7 @@ def test_check_for_changes_job_incomplete_and_stalled(job_watcher_maker):
     jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.update_current_container_info = mock.MagicMock()
     jw.cleanup_job = mock.MagicMock()
+    jw.resubmit_job = mock.MagicMock()
     jw.check_for_job_complete = mock.MagicMock(return_value=False)
     jw.check_for_pod_stalled = mock.MagicMock(return_value=True)
     jw.done_watching = False
@@ -248,6 +251,7 @@ def test_check_for_changes_job_incomplete_and_stalled(job_watcher_maker):
     jw.check_for_changes()
 
     jw.update_current_container_info.assert_called_once_with()
+    jw.resubmit_job.assert_called_once_with()
     jw.cleanup_job.assert_called_once_with()
     jw.check_for_job_complete.assert_called_once_with()
     jw.check_for_pod_stalled.assert_called_once_with()
@@ -347,7 +351,7 @@ def test_check_for_job_complete_container_status_running(job_watcher_maker):
 
 
 @pytest.mark.usefixtures("job_watcher_maker")
-def test_check_for_pod_stalled_pod_is_younger_than_30_minutes(job_watcher_maker):
+def test_check_for_pod_stalled_pod_is_younger_than_60_minutes(job_watcher_maker):
     jw, _client, _find_pod_from_partial_name = job_watcher_maker
     jw.pod.metadata.creation_timestamp = datetime.now(UTC)
     jw.max_time_to_complete = 99999999
@@ -365,9 +369,9 @@ def test_check_for_pod_stalled_pod_where_pod_is_none(job_watcher_maker):
 
 
 @pytest.mark.usefixtures("job_watcher_maker")
-def test_check_for_pod_stalled_pod_is_stalled_for_30_minutes(job_watcher_maker):
+def test_check_for_pod_stalled_pod_is_stalled_for_60_minutes(job_watcher_maker):
     jw, _, __ = job_watcher_maker
-    jw.pod.metadata.creation_timestamp = datetime.now(UTC) - timedelta(seconds=60 * 35)
+    jw.pod.metadata.creation_timestamp = datetime.now(UTC) - timedelta(seconds=60 * 65)
     jw.max_time_to_complete = 99999999
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
@@ -379,7 +383,7 @@ def test_check_for_pod_stalled_pod_is_stalled_for_30_minutes(job_watcher_maker):
         namespace=jw.pod.metadata.namespace,
         timestamps=True,
         tail_lines=1,
-        since_seconds=60 * 30,
+        since_seconds=60 * 60,
         container=jw.container_name,
     )
 
@@ -850,3 +854,65 @@ def test_update_job_status_retry_on_request_exception(n_exceptions: int) -> None
         assert mock_sleep.call_count == n_exceptions
         assert mock_logger_warning.call_count == n_exceptions
         mock_sleep.assert_has_calls([call(5)] * n_exceptions)
+
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_resubmit_job_success(job_watcher_maker):
+    jw, _, __ = job_watcher_maker
+    filepath = "/some/file/path"
+    jw.job.metadata.annotations = {"filepath": filepath}
+    with patch("jobwatcher.job_watcher.pika") as mock_pika:
+        jw.resubmit_job()
+
+        mock_pika.PlainCredentials.assert_called_once()
+        mock_pika.ConnectionParameters.assert_called_once()
+        mock_pika.BlockingConnection.assert_called_once()
+        connection = mock_pika.BlockingConnection.return_value
+        connection.channel.assert_called_once()
+        channel = connection.channel.return_value
+        channel.queue_declare.assert_called_once_with(
+            jw.FAILURE_QUEUE_NAME if hasattr(jw, "FAILURE_QUEUE_NAME") else "failed-watched-files",
+            durable=True,
+            arguments={"x-queue-type": "quorum"},
+        )
+        channel.basic_publish.assert_called_once_with(
+            exchange="",
+            routing_key=jw.FAILURE_QUEUE_NAME if hasattr(jw, "FAILURE_QUEUE_NAME") else "failed-watched-files",
+            body=filepath.encode(),
+        )
+        connection.close.assert_called_once()
+
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_resubmit_job_no_filepath(job_watcher_maker):
+    jw, _, __ = job_watcher_maker
+    jw.job.metadata.annotations = {}
+    with patch("jobwatcher.job_watcher.pika") as mock_pika:
+        jw.resubmit_job()
+
+        mock_pika.PlainCredentials.assert_not_called()
+
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_resubmit_job_exception(job_watcher_maker):
+    jw, _, __ = job_watcher_maker
+    filepath = "/some/file/path"
+    jw.job.metadata.annotations = {"filepath": filepath}
+    with (
+        patch("jobwatcher.job_watcher.pika") as mock_pika,
+        patch("jobwatcher.job_watcher.logger.error") as mock_logger_error,
+        patch("jobwatcher.job_watcher.logger.exception") as mock_logger_exception,
+    ):
+        mock_pika.BlockingConnection.side_effect = Exception("Test Exception")
+        jw.resubmit_job()
+
+        mock_logger_error.assert_called_once()
+        mock_logger_exception.assert_called_once()
+
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_resubmit_job_job_is_none(job_watcher_maker):
+    jw, _, __ = job_watcher_maker
+    jw.job = None
+    with pytest.raises(AttributeError, match=r"Job must be set in the JobWatcher before calling this function\."):
+        jw.resubmit_job()

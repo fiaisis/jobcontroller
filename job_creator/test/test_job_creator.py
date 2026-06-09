@@ -255,6 +255,11 @@ def test_jobcreator_spawn_job_dev_mode_true(
     special_pvs = mock.MagicMock()
     taints = mock.MagicMock()
     affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
+    queue_host = mock.MagicMock()
+    queue_user = mock.MagicMock()
+    queue_password = mock.MagicMock()
+    failure_queue_name = mock.MagicMock()
+    filepath = mock.MagicMock()
 
     job_creator.spawn_job(
         job_name,
@@ -275,6 +280,11 @@ def test_jobcreator_spawn_job_dev_mode_true(
         special_pvs,
         taints,
         affinity,
+        queue_host,
+        queue_user,
+        queue_password,
+        failure_queue_name,
+        filepath,
     )
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["body"] == client.V1Job.return_value
@@ -370,6 +380,10 @@ def test_jobcreator_spawn_job_dev_mode_true(
                 client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
                 client.V1EnvVar(name="JOB_NAME", value=job_name),
                 client.V1EnvVar(name="POD_NAME", value=job_name),
+                client.V1EnvVar(name="QUEUE_HOST", value=queue_host),
+                client.V1EnvVar(name="QUEUE_USER", value=queue_user),
+                client.V1EnvVar(name="QUEUE_PASSWORD", value=queue_password),
+                client.V1EnvVar(name="FAILURE_QUEUE_NAME", value=failure_queue_name),
             ],
         )
         in client.V1Container.call_args_list
@@ -437,6 +451,11 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     special_pvs = ["imat"]
     taints = [{"key": "nvidia.com/gpu", "effect": "NoSchedule", "operator": "Exists"}]
     affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
+    queue_host = mock.MagicMock()
+    queue_user = mock.MagicMock()
+    queue_password = mock.MagicMock()
+    failure_queue_name = mock.MagicMock()
+    filepath = mock.MagicMock()
 
     job_creator.spawn_job(
         job_name,
@@ -457,6 +476,11 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
         special_pvs,
         taints,
         affinity,
+        queue_host,
+        queue_user,
+        queue_password,
+        failure_queue_name,
+        filepath,
     )
 
     assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
@@ -573,6 +597,10 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
                 client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
                 client.V1EnvVar(name="JOB_NAME", value=job_name),
                 client.V1EnvVar(name="POD_NAME", value=job_name),
+                client.V1EnvVar(name="QUEUE_HOST", value=queue_host),
+                client.V1EnvVar(name="QUEUE_USER", value=queue_user),
+                client.V1EnvVar(name="QUEUE_PASSWORD", value=queue_password),
+                client.V1EnvVar(name="FAILURE_QUEUE_NAME", value=failure_queue_name),
             ],
         )
         in client.V1Container.call_args_list
@@ -640,6 +668,12 @@ def test_jobcreator_spawn_job_dev_mode_false(
     special_pvs = mock.MagicMock()
     taints = mock.MagicMock()
     affinity = mock.MagicMock()
+    queue_host = mock.MagicMock()
+    queue_user = mock.MagicMock()
+    queue_password = mock.MagicMock()
+    failure_queue_name = mock.MagicMock()
+    filepath = mock.MagicMock()
+
     job_creator.spawn_job(
         job_name,
         script,
@@ -659,6 +693,11 @@ def test_jobcreator_spawn_job_dev_mode_false(
         special_pvs,
         taints,
         affinity,
+        queue_host,
+        queue_user,
+        queue_password,
+        failure_queue_name,
+        filepath,
     )
 
     assert (

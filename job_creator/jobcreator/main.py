@@ -44,6 +44,7 @@ QUEUE_HOST = os.environ.get("QUEUE_HOST", "")
 QUEUE_NAME = os.environ.get("INGRESS_QUEUE_NAME", "")
 CONSUMER_USERNAME = os.environ.get("QUEUE_USER", "")
 CONSUMER_PASSWORD = os.environ.get("QUEUE_PASSWORD", "")
+FAILURE_QUEUE_NAME = os.environ.get("FAILURE_QUEUE_NAME", "failed-watched-files")
 REDUCE_USER_ID = os.environ.get("REDUCE_USER_ID", "")
 JOB_NAMESPACE = os.environ.get("JOB_NAMESPACE", "fia")
 JOB_CREATOR = JobCreator(dev_mode=DEV_MODE, watcher_sha=WATCHER_SHA)
@@ -165,6 +166,10 @@ def process_simple_message(message: dict[str, Any]) -> None:
             special_pvs=[],
             taints=taints,
             affinity=affinity,
+            queue_host=QUEUE_HOST,
+            queue_user=CONSUMER_USERNAME,
+            queue_password=CONSUMER_PASSWORD,
+            failure_queue_name=FAILURE_QUEUE_NAME,
         )
     except Exception as exception:
         logger.exception(exception)
@@ -209,6 +214,10 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             special_pvs=special_pvs,
             taints=taints,
             affinity=affinity,
+            queue_host=QUEUE_HOST,
+            queue_user=CONSUMER_USERNAME,
+            queue_password=CONSUMER_PASSWORD,
+            failure_queue_name=FAILURE_QUEUE_NAME,
         )
     except Exception as exception:
         logger.exception(exception)
@@ -272,6 +281,11 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             special_pvs=special_pvs,
             taints=taints,
             affinity=affinity,
+            queue_host=QUEUE_HOST,
+            queue_user=CONSUMER_USERNAME,
+            queue_password=CONSUMER_PASSWORD,
+            failure_queue_name=FAILURE_QUEUE_NAME,
+            filepath=message.get("filepath"),
         )
     except Exception as exception:
         logger.exception(exception)
