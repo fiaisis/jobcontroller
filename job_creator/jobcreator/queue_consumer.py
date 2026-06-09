@@ -6,6 +6,7 @@ import json
 import time
 from collections.abc import Callable
 
+import pika
 from pika import BlockingConnection, ConnectionParameters, PlainCredentials
 
 from jobcreator.utils import logger
