@@ -908,3 +908,10 @@ def test_resubmit_job_exception(job_watcher_maker):
 
         mock_logger_error.assert_called_once()
         mock_logger_exception.assert_called_once()
+
+@pytest.mark.usefixtures("job_watcher_maker")
+def test_resubmit_job_job_is_none(job_watcher_maker):
+    jw, _, __ = job_watcher_maker
+    jw.job = None
+    with pytest.raises(AttributeError, match="Job must be set in the JobWatcher before calling this function."):
+        jw.resubmit_job()
