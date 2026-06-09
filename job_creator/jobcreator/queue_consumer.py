@@ -6,7 +6,7 @@ import json
 import time
 from collections.abc import Callable
 
-import pika #type: ignore[import]
+import pika  # type: ignore[import]
 from pika import BlockingConnection, ConnectionParameters, PlainCredentials
 
 from jobcreator.utils import logger
