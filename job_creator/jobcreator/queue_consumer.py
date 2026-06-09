@@ -4,9 +4,9 @@ The module is aimed to consume from a station on Memphis using the create_statio
 
 import json
 import time
-import pika
 from collections.abc import Callable
 
+import pika
 from pika import BlockingConnection, ConnectionParameters, PlainCredentials  # type: ignore[import-untyped]
 
 from jobcreator.utils import logger
@@ -56,12 +56,12 @@ class QueueConsumer:
                 )
                 self.channel.queue_bind(self.queue_name, self.queue_name, routing_key="")  # type: ignore[attr-defined]
             except pika.exceptions.AMQPConnectionError:
-                wait_time = min(2 ** attempt, 30)
-                logger.warning("Broker unavailable (attempt %d/%d), retrying in %ds",
-                               attempt + 1, max_retries, wait_time)
+                wait_time = min(2**attempt, 30)
+                logger.warning(
+                    "Broker unavailable (attempt %d/%d), retrying in %ds", attempt + 1, max_retries, wait_time
+                )
                 time.sleep(wait_time)
         raise RuntimeError(f"Failed to connect to message broker after {max_retries} attempts")
-
 
     def _message_handler(self, msg: str) -> None:
         """
@@ -103,8 +103,7 @@ class QueueConsumer:
                         logger.warning("Problem processing message: %s", body)
                     break
                 time.sleep(0.1)
-            except (pika.exceptions.AMQPConnectionError,
-                    pika.exceptions.ChannelCloserByBroker) as e:
-                logger.warning("Lost connection to broker: %s. Reconnecting...",  e)
+            except (pika.exceptions.AMQPConnectionError, pika.exceptions.ChannelCloserByBroker) as e:
+                logger.warning("Lost connection to broker: %s. Reconnecting...", e)
                 time.sleep(5)
                 self.connect_to_broker()
