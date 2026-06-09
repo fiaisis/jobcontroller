@@ -855,6 +855,7 @@ def test_update_job_status_retry_on_request_exception(n_exceptions: int) -> None
         assert mock_logger_warning.call_count == n_exceptions
         mock_sleep.assert_has_calls([call(5)] * n_exceptions)
 
+
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_resubmit_job_success(job_watcher_maker):
     jw, _, __ = job_watcher_maker
@@ -869,9 +870,18 @@ def test_resubmit_job_success(job_watcher_maker):
         connection = mock_pika.BlockingConnection.return_value
         connection.channel.assert_called_once()
         channel = connection.channel.return_value
-        channel.queue_declare.assert_called_once_with(jw.FAILURE_QUEUE_NAME if hasattr(jw, "FAILURE_QUEUE_NAME") else "failed-watched-files", durable=True, arguments={"x-queue-type": "quorum"})
-        channel.basic_publish.assert_called_once_with(exchange="", routing_key=jw.FAILURE_QUEUE_NAME if hasattr(jw, "FAILURE_QUEUE_NAME") else "failed-watched-files", body=filepath.encode())
+        channel.queue_declare.assert_called_once_with(
+            jw.FAILURE_QUEUE_NAME if hasattr(jw, "FAILURE_QUEUE_NAME") else "failed-watched-files",
+            durable=True,
+            arguments={"x-queue-type": "quorum"},
+        )
+        channel.basic_publish.assert_called_once_with(
+            exchange="",
+            routing_key=jw.FAILURE_QUEUE_NAME if hasattr(jw, "FAILURE_QUEUE_NAME") else "failed-watched-files",
+            body=filepath.encode(),
+        )
         connection.close.assert_called_once()
+
 
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_resubmit_job_no_filepath(job_watcher_maker):
@@ -882,12 +892,17 @@ def test_resubmit_job_no_filepath(job_watcher_maker):
 
         mock_pika.PlainCredentials.assert_not_called()
 
+
 @pytest.mark.usefixtures("job_watcher_maker")
 def test_resubmit_job_exception(job_watcher_maker):
     jw, _, __ = job_watcher_maker
     filepath = "/some/file/path"
     jw.job.metadata.annotations = {"filepath": filepath}
-    with patch("jobwatcher.job_watcher.pika") as mock_pika, patch("jobwatcher.job_watcher.logger.error") as mock_logger_error, patch("jobwatcher.job_watcher.logger.exception") as mock_logger_exception:
+    with (
+        patch("jobwatcher.job_watcher.pika") as mock_pika,
+        patch("jobwatcher.job_watcher.logger.error") as mock_logger_error,
+        patch("jobwatcher.job_watcher.logger.exception") as mock_logger_exception,
+    ):
         mock_pika.BlockingConnection.side_effect = Exception("Test Exception")
         jw.resubmit_job()
 
