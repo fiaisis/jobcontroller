@@ -12,7 +12,7 @@ from json import JSONDecodeError
 from time import sleep
 from typing import Any, Literal, cast
 
-import pika
+import pika  # type: ignore[import-untyped]
 import requests
 from kubernetes import client  # type: ignore[import-untyped]
 from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
