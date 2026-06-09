@@ -7,7 +7,7 @@ import time
 import pika
 from collections.abc import Callable
 
-from pika import BlockingConnection, ConnectionParameters, PlainCredentials  # type: ignore[import-untyped]
+from pika import BlockingConnection, ConnectionParameters, PlainCredentials
 
 from jobcreator.utils import logger
 
@@ -35,7 +35,7 @@ class QueueConsumer:
         self.channel = None
         self.connect_to_broker()
 
-    def connect_to_broker(self, max_retries=10) -> None:
+    def connect_to_broker(self, max_retries: int = 10) -> None:
         """
         Use this to connect to the broker
         :return: None
