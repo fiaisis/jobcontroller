@@ -60,7 +60,7 @@ class QueueConsumer:
                 logger.warning("Broker unavailable (attempt %d/%d), retrying in %ds",
                                attempt + 1, max_retries, wait_time)
                 time.sleep(wait_time)
-        raise RuntimeError("Failed to connect to message broker after %d attempts" % max_retries)
+        raise RuntimeError(f"Failed to connect to message broker after {max_retries} attempts")
 
 
     def _message_handler(self, msg: str) -> None:
