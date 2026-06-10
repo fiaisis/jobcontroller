@@ -55,6 +55,8 @@ class QueueConsumer:
                     arguments={"x-queue-type": "quorum"},
                 )
                 self.channel.queue_bind(self.queue_name, self.queue_name, routing_key="")  # type: ignore[attr-defined]
+                logger.info("Connected to broker")
+                return
             except pika.exceptions.AMQPConnectionError:
                 wait_time = min(2**attempt, 30)
                 logger.warning(
@@ -103,7 +105,7 @@ class QueueConsumer:
                         logger.warning("Problem processing message: %s", body)
                     break
                 time.sleep(0.1)
-            except (pika.exceptions.AMQPConnectionError, pika.exceptions.ChannelCloserByBroker) as e:
+            except (pika.exceptions.AMQPConnectionError, pika.exceptions.ChannelClosedByBroker) as e:
                 logger.warning("Lost connection to broker: %s. Reconnecting...", e)
                 time.sleep(5)
                 self.connect_to_broker()
