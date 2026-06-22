@@ -4,7 +4,7 @@ readme = "README.md"
 version = "0.0.1"
 requires-python = ">= 3.11"
 dependencies = [
-    "kubernetes==35.0.0",
+    "kubernetes==36.0.2",
 ]
 
 [project.urls]
@@ -16,18 +16,23 @@ jobwatcher = "jobwatcher.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.15.10",
-    "mypy==1.20.1",
+    "ruff==0.15.15",
+    "mypy==2.1.0",
     "pytest==9.0.3",
     "sqlalchemy-stubs==0.4",
-    "types-requests==2.33.0.20260408"
+    "types-requests==2.33.0.20260518"
 ]
 
 test = [
-    "hypothesis==6.151.14",
+    "hypothesis==6.155.1",
     "pytest==9.0.3",
     "pytest-cov==7.1.0",
     "pytest-random-order==1.2.0"
+]
+
+all = [
+    "jobwatcher[formatting]",
+    "jobwatcher[test]",
 ]
 
 [tool.setuptools]

@@ -335,6 +335,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
         restart_policy="Never",
         tolerations=[],
         volumes=[client.V1Volume.return_value, client.V1Volume.return_value, client.V1Volume.return_value],
+        runtime_class_name=None,
     )
     assert (
         call(name="ceph-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
@@ -388,6 +389,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
                 client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
             ],
+            resources=None,
         )
         in client.V1Container.call_args_list
     )
@@ -523,6 +525,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
             client.V1Volume.return_value,
             client.V1Volume.return_value,
         ],
+        runtime_class_name="nvidia",
     )
     assert (
         call(name="ceph-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
@@ -591,6 +594,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
                 client.V1VolumeMount(name="imat-mount", mount_path="/imat"),
                 client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"),  # noqa: S108
             ],
+            resources=client.V1ResourceRequirements(limits={"nvidia.com/gpu": "1"}),
         )
         in client.V1Container.call_args_list
     )
