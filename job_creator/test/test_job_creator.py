@@ -2,8 +2,12 @@ import random
 from unittest import mock
 from unittest.mock import call
 
+import pytest
+from kubernetes.client.exceptions import ApiException
+
 from jobcreator.job_creator import (
     JobCreator,
+    _is_retryable_k8s_error,
     _setup_ceph_pv,
     _setup_extras_pv,
     _setup_extras_pvc,
@@ -665,3 +669,152 @@ def test_jobcreator_spawn_job_dev_mode_false(
     assert client.V1PersistentVolumeClaimVolumeSource.call_count == 2  # noqa: PLR2004
 
     setup_ceph_pv.assert_not_called()
+
+
+# --- Tests for _is_retryable_k8s_error ---
+
+
+@pytest.mark.parametrize("status_code", [429, 500, 502, 503, 504])
+def test_is_retryable_k8s_error_returns_true_for_transient_status_codes(status_code):
+    exc = ApiException(status=status_code)
+    assert _is_retryable_k8s_error(exc) is True
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 403, 404, 409, 422])
+def test_is_retryable_k8s_error_returns_false_for_non_transient_status_codes(status_code):
+    exc = ApiException(status=status_code)
+    assert _is_retryable_k8s_error(exc) is False
+
+
+def test_is_retryable_k8s_error_returns_true_for_connection_error():
+    assert _is_retryable_k8s_error(ConnectionError("connection refused")) is True
+
+
+def test_is_retryable_k8s_error_returns_true_for_timeout_error():
+    assert _is_retryable_k8s_error(TimeoutError("timed out")) is True
+
+
+def test_is_retryable_k8s_error_returns_false_for_unrelated_exception():
+    assert _is_retryable_k8s_error(ValueError("something else")) is False
+
+
+def test_is_retryable_k8s_error_returns_false_for_runtime_error():
+    assert _is_retryable_k8s_error(RuntimeError("unexpected")) is False
+
+
+# --- Tests for _cleanup_resources ---
+
+
+@mock.patch("jobcreator.job_creator.client")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+def test_cleanup_resources_deletes_pvcs_and_pvs(_, client):
+    job_creator = JobCreator("sha", False)
+    pv_names = ["pv-1", "pv-2"]
+    pvc_names = ["pvc-1", "pvc-2"]
+    namespace = "test-ns"
+
+    job_creator._cleanup_resources(pv_names, pvc_names, namespace)
+
+    core_api = client.CoreV1Api.return_value
+    assert core_api.delete_namespaced_persistent_volume_claim.call_count == 2  # noqa: PLR2004
+    core_api.delete_namespaced_persistent_volume_claim.assert_any_call(name="pvc-1", namespace="test-ns")
+    core_api.delete_namespaced_persistent_volume_claim.assert_any_call(name="pvc-2", namespace="test-ns")
+    assert core_api.delete_persistent_volume.call_count == 2  # noqa: PLR2004
+    core_api.delete_persistent_volume.assert_any_call(name="pv-1")
+    core_api.delete_persistent_volume.assert_any_call(name="pv-2")
+
+
+@mock.patch("jobcreator.job_creator.logger")
+@mock.patch("jobcreator.job_creator.client")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+def test_cleanup_resources_logs_warning_on_pvc_deletion_failure(_, client, mock_logger):
+    client.ApiException = ApiException
+    core_api = client.CoreV1Api.return_value
+    core_api.delete_namespaced_persistent_volume_claim.side_effect = ApiException(status=404)
+
+    job_creator = JobCreator("sha", False)
+    job_creator._cleanup_resources(["pv-1"], ["pvc-1"], "test-ns")
+
+    mock_logger.warning.assert_any_call("Failed to cleanup PVC: %s", "pvc-1")
+    # PV cleanup should still proceed
+    core_api.delete_persistent_volume.assert_called_once_with(name="pv-1")
+
+
+@mock.patch("jobcreator.job_creator.logger")
+@mock.patch("jobcreator.job_creator.client")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+def test_cleanup_resources_logs_warning_on_pv_deletion_failure(_, client, mock_logger):
+    client.ApiException = ApiException
+    core_api = client.CoreV1Api.return_value
+    core_api.delete_persistent_volume.side_effect = ApiException(status=404)
+
+    job_creator = JobCreator("sha", False)
+    job_creator._cleanup_resources(["pv-1"], [], "test-ns")
+
+    mock_logger.warning.assert_any_call("Failed to cleanup PV: %s", "pv-1")
+
+
+@mock.patch("jobcreator.job_creator.client")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+def test_cleanup_resources_handles_empty_lists(_, client):
+    job_creator = JobCreator("sha", False)
+    job_creator._cleanup_resources([], [], "test-ns")
+
+    core_api = client.CoreV1Api.return_value
+    core_api.delete_namespaced_persistent_volume_claim.assert_not_called()
+    core_api.delete_persistent_volume.assert_not_called()
+
+
+# --- Tests for spawn_job cleanup-on-failure ---
+
+
+@mock.patch("jobcreator.job_creator._setup_extras_pv")
+@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_ceph_pv")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+@mock.patch("jobcreator.job_creator.client")
+def test_spawn_job_calls_cleanup_and_reraises_on_failure(
+    client,
+    _,  # noqa: PT019
+    setup_ceph_pv,
+    setup_pvc,
+    setup_smb_pv,
+    setup_extras_pvc,
+    setup_extras_pv,
+):
+    """When job creation fails, cleanup_resources is called and the exception is re-raised."""
+    client.BatchV1Api.return_value.create_namespaced_job.side_effect = ApiException(status=500)
+    job_creator = JobCreator("sha", False)
+    job_creator._cleanup_resources = mock.MagicMock()
+    job_name = "test-job"
+
+    with pytest.raises(ApiException):
+        job_creator.spawn_job(
+            job_name,
+            "script",
+            "namespace",
+            "ceph-secret",
+            "ceph-ns",
+            "cluster-id",
+            "fs-name",
+            "/ceph/path",
+            1,
+            3600,
+            "fia-api-host",
+            "api-key",
+            "runner-image",
+            "manila-share-id",
+            "manila-access-id",
+            [],
+            [],
+            None,
+        )
+
+    job_creator._cleanup_resources.assert_called_once()
+    call_args = job_creator._cleanup_resources.call_args
+    # Verify pv_names and pvc_names lists were passed (non-empty since setup steps succeeded)
+    assert len(call_args[0][0]) > 0  # pv_names
+    assert len(call_args[0][1]) > 0  # pvc_names
+    assert call_args[0][2] == "namespace"  # namespace

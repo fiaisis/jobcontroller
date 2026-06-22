@@ -491,7 +491,7 @@ class JobCreator:
         """Best-effort cleanup of created K8s resources."""
         for pvc_name in pvc_names:
             try:
-                client.CoreV1Api().delete_namespaced_persistent_valume_claim(name=pvc_name, namespace=namespace)
+                client.CoreV1Api().delete_namespaced_persistent_volume_claim(name=pvc_name, namespace=namespace)
             except client.ApiException:
                 logger.warning("Failed to cleanup PVC: %s", pvc_name)
         for pv_name in pv_names:
