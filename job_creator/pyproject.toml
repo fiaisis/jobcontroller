@@ -6,6 +6,7 @@ requires-python = ">= 3.11"
 dependencies = [
     "kubernetes==36.0.2",
     "pika==1.4.1",
+    "tenacity==9.1.4",
 ]
 
 [project.urls]

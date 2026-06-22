@@ -6,7 +6,8 @@ import json
 import time
 from collections.abc import Callable
 
-from pika import BlockingConnection, ConnectionParameters, PlainCredentials  # type: ignore[import-untyped]
+import pika  # type: ignore[import-untyped]
+from pika import BlockingConnection, ConnectionParameters, PlainCredentials
 
 from jobcreator.utils import logger
 
@@ -34,24 +35,35 @@ class QueueConsumer:
         self.channel = None
         self.connect_to_broker()
 
-    def connect_to_broker(self) -> None:
+    def connect_to_broker(self, max_retries: int = 10) -> None:
         """
         Use this to connect to the broker
         :return: None
         """
-        self.connection = BlockingConnection(self.connection_parameters)
-        self.channel = self.connection.channel()  # type: ignore[attr-defined]
-        self.channel.exchange_declare(  # type: ignore[attr-defined]
-            self.queue_name,
-            exchange_type="direct",
-            durable=True,
-        )
-        self.channel.queue_declare(  # type: ignore[attr-defined]
-            self.queue_name,
-            durable=True,
-            arguments={"x-queue-type": "quorum"},
-        )
-        self.channel.queue_bind(self.queue_name, self.queue_name, routing_key="")  # type: ignore[attr-defined]
+        for attempt in range(max_retries):
+            try:
+                self.connection = BlockingConnection(self.connection_parameters)
+                self.channel = self.connection.channel()  # type: ignore[attr-defined]
+                self.channel.exchange_declare(  # type: ignore[attr-defined]
+                    self.queue_name,
+                    exchange_type="direct",
+                    durable=True,
+                )
+                self.channel.queue_declare(  # type: ignore[attr-defined]
+                    self.queue_name,
+                    durable=True,
+                    arguments={"x-queue-type": "quorum"},
+                )
+                self.channel.queue_bind(self.queue_name, self.queue_name, routing_key="")  # type: ignore[attr-defined]
+                logger.info("Connected to broker")
+                return
+            except pika.exceptions.AMQPConnectionError:
+                wait_time = min(2**attempt, 30)
+                logger.warning(
+                    "Broker unavailable (attempt %d/%d), retrying in %ds", attempt + 1, max_retries, wait_time
+                )
+                time.sleep(wait_time)
+        raise RuntimeError(f"Failed to connect to message broker after {max_retries} attempts")
 
     def _message_handler(self, msg: str) -> None:
         """
@@ -77,19 +89,23 @@ class QueueConsumer:
         while run:
             if run_once:
                 run = False
-            callback_func()
-            for header, _, body in self.channel.consume(  # type: ignore[attr-defined]
-                self.queue_name,
-                inactivity_timeout=5,
-            ):
-                try:
-                    self._message_handler(body.decode())
-                    self.channel.basic_ack(header.delivery_tag)  # type: ignore[attr-defined]
-                except AttributeError:
-                    # If the message frame or body is missing attributes required e.g. the delivery tag
-                    pass
-                except Exception:
-                    logger.warning("Problem processing message: %s", body)
-                break
-
-            time.sleep(0.1)
+            try:
+                callback_func()
+                for header, _, body in self.channel.consume(  # type: ignore[attr-defined]
+                    self.queue_name,
+                    inactivity_timeout=5,
+                ):
+                    try:
+                        self._message_handler(body.decode())
+                        self.channel.basic_ack(header.delivery_tag)  # type: ignore[attr-defined]
+                    except AttributeError:
+                        # If the message frame or body is missing attributes required e.g. the delivery tag
+                        pass
+                    except Exception:
+                        logger.warning("Problem processing message: %s", body)
+                    break
+                time.sleep(0.1)
+            except (pika.exceptions.AMQPConnectionError, pika.exceptions.ChannelClosedByBroker) as e:
+                logger.warning("Lost connection to broker: %s. Reconnecting...", e)
+                time.sleep(5)
+                self.connect_to_broker()
