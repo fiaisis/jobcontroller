@@ -1,5 +1,6 @@
 from unittest import mock
 
+import pika.exceptions
 import pytest
 from pika import PlainCredentials
 
@@ -115,9 +116,9 @@ def test_start_consumer_will_handle_exceptions_as_warnings(setup_queue_consumer)
 @mock.patch("jobcreator.queue_consumer.time")
 @mock.patch("jobcreator.queue_consumer.ConnectionParameters")
 @mock.patch("jobcreator.queue_consumer.BlockingConnection")
-def test_connect_to_broker_retries_on_amqp_error_then_succeeds(blocking_connection, _conn_params, mock_time):
+def test_connect_to_broker_retries_on_amqp_error_then_succeeds(blocking_connection, mock_conn_params, mock_time):
     """connect_to_broker retries on AMQPConnectionError and succeeds on a subsequent attempt."""
-    import pika.exceptions
+
 
     blocking_connection.side_effect = [
         pika.exceptions.AMQPConnectionError("refused"),
@@ -137,9 +138,8 @@ def test_connect_to_broker_retries_on_amqp_error_then_succeeds(blocking_connecti
 @mock.patch("jobcreator.queue_consumer.time")
 @mock.patch("jobcreator.queue_consumer.ConnectionParameters")
 @mock.patch("jobcreator.queue_consumer.BlockingConnection")
-def test_connect_to_broker_raises_runtime_error_after_max_retries(blocking_connection, _conn_params, mock_time):
+def test_connect_to_broker_raises_runtime_error_after_max_retries(blocking_connection, mock_conn_params, mock_time):
     """connect_to_broker raises RuntimeError after exhausting all retry attempts."""
-    import pika.exceptions
 
     blocking_connection.side_effect = pika.exceptions.AMQPConnectionError("refused")
 
@@ -150,9 +150,8 @@ def test_connect_to_broker_raises_runtime_error_after_max_retries(blocking_conne
 @mock.patch("jobcreator.queue_consumer.time")
 @mock.patch("jobcreator.queue_consumer.ConnectionParameters")
 @mock.patch("jobcreator.queue_consumer.BlockingConnection")
-def test_connect_to_broker_uses_exponential_backoff(blocking_connection, _conn_params, mock_time):
+def test_connect_to_broker_uses_exponential_backoff(blocking_connection, mock_conn_params, mock_time):
     """connect_to_broker sleeps with exponentially increasing wait times."""
-    import pika.exceptions
 
     blocking_connection.side_effect = pika.exceptions.AMQPConnectionError("refused")
 
@@ -171,9 +170,8 @@ def test_connect_to_broker_uses_exponential_backoff(blocking_connection, _conn_p
 @mock.patch("jobcreator.queue_consumer.time")
 @mock.patch("jobcreator.queue_consumer.ConnectionParameters")
 @mock.patch("jobcreator.queue_consumer.BlockingConnection")
-def test_start_consuming_reconnects_on_amqp_connection_error(blocking_connection, _conn_params, mock_time):
+def test_start_consuming_reconnects_on_amqp_connection_error(blocking_connection, mock_conn_params, mock_time):
     """start_consuming reconnects to the broker when AMQPConnectionError is raised during consuming."""
-    import pika.exceptions
 
     quc = QueueConsumer(mock.MagicMock(), mock.MagicMock(), mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
     quc.connect_to_broker = mock.MagicMock()
@@ -204,9 +202,8 @@ def test_start_consuming_reconnects_on_amqp_connection_error(blocking_connection
 @mock.patch("jobcreator.queue_consumer.time")
 @mock.patch("jobcreator.queue_consumer.ConnectionParameters")
 @mock.patch("jobcreator.queue_consumer.BlockingConnection")
-def test_start_consuming_reconnects_on_channel_closed_by_broker(blocking_connection, _conn_params, mock_time):
+def test_start_consuming_reconnects_on_channel_closed_by_broker(blocking_connection, mock_conn_params, mock_time):
     """start_consuming reconnects when ChannelClosedByBroker is raised."""
-    import pika.exceptions
 
     quc = QueueConsumer(mock.MagicMock(), mock.MagicMock(), mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
     quc.connect_to_broker = mock.MagicMock()

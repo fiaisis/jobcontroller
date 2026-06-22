@@ -707,7 +707,7 @@ def test_is_retryable_k8s_error_returns_false_for_runtime_error():
 
 @mock.patch("jobcreator.job_creator.client")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
-def test_cleanup_resources_deletes_pvcs_and_pvs(_, client):
+def test_cleanup_resources_deletes_pvcs_and_pvs(mock_load_k8s_config, client):
     job_creator = JobCreator("sha", False)
     pv_names = ["pv-1", "pv-2"]
     pvc_names = ["pvc-1", "pvc-2"]
@@ -727,7 +727,7 @@ def test_cleanup_resources_deletes_pvcs_and_pvs(_, client):
 @mock.patch("jobcreator.job_creator.logger")
 @mock.patch("jobcreator.job_creator.client")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
-def test_cleanup_resources_logs_warning_on_pvc_deletion_failure(_, client, mock_logger):
+def test_cleanup_resources_logs_warning_on_pvc_deletion_failure(mock_load_k8s_config, client, mock_logger):
     client.ApiException = ApiException
     core_api = client.CoreV1Api.return_value
     core_api.delete_namespaced_persistent_volume_claim.side_effect = ApiException(status=404)
@@ -743,7 +743,7 @@ def test_cleanup_resources_logs_warning_on_pvc_deletion_failure(_, client, mock_
 @mock.patch("jobcreator.job_creator.logger")
 @mock.patch("jobcreator.job_creator.client")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
-def test_cleanup_resources_logs_warning_on_pv_deletion_failure(_, client, mock_logger):
+def test_cleanup_resources_logs_warning_on_pv_deletion_failure(mock_load_k8s_config, client, mock_logger):
     client.ApiException = ApiException
     core_api = client.CoreV1Api.return_value
     core_api.delete_persistent_volume.side_effect = ApiException(status=404)
@@ -756,7 +756,7 @@ def test_cleanup_resources_logs_warning_on_pv_deletion_failure(_, client, mock_l
 
 @mock.patch("jobcreator.job_creator.client")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
-def test_cleanup_resources_handles_empty_lists(_, client):
+def test_cleanup_resources_handles_empty_lists(mock_load_k8s_config, client):
     job_creator = JobCreator("sha", False)
     job_creator._cleanup_resources([], [], "test-ns")
 
