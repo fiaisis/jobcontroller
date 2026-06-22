@@ -119,7 +119,6 @@ def test_start_consumer_will_handle_exceptions_as_warnings(setup_queue_consumer)
 def test_connect_to_broker_retries_on_amqp_error_then_succeeds(blocking_connection, mock_conn_params, mock_time):
     """connect_to_broker retries on AMQPConnectionError and succeeds on a subsequent attempt."""
 
-
     blocking_connection.side_effect = [
         pika.exceptions.AMQPConnectionError("refused"),
         pika.exceptions.AMQPConnectionError("refused"),
