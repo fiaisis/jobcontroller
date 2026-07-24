@@ -247,7 +247,7 @@ class JobCreator:
         self.watcher_sha = watcher_sha
         self.dev_mode = dev_mode
 
-    def spawn_job(  # noqa: PLR0913
+    def spawn_job(  # noqa: PLR0913, PLR0917
         self,
         job_name: str,
         script: str,
