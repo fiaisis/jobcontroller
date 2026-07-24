@@ -12,7 +12,7 @@ PASSWORD = mock.MagicMock()
 QUEUE_NAME = mock.MagicMock()
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True)
 def setup_queue_consumer():
     with (
         mock.patch("jobcreator.queue_consumer.ConnectionParameters") as connection_parameters,
