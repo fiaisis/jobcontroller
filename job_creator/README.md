@@ -87,12 +87,14 @@ Simple (this shouldn't be done example):
 The script used in above from https://github.com/olavolav/uniplot
 ```python
 import pandas as pd
+
 uri = "https://github.com/owid/owid-datasets/raw/master/datasets/Global%20average%20temperature%20anomaly%20-%20Hadley%20Centre/Global%20average%20temperature%20anomaly%20-%20Hadley%20Centre.csv"
 data = pd.read_csv(uri)
 data = data.rename(columns={"Global average temperature anomaly (Hadley Centre)": "Global"})
 data = data[data.Entity == "median"]
 
 from uniplot import plot
+
 plot(xs=data.Year, ys=data.Global, lines=True, title="Global normalized land-sea temperature anomaly", y_unit=" °C")
 ```
 
