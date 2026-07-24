@@ -42,6 +42,7 @@ FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY", "")
 QUEUE_HOST = os.environ.get("QUEUE_HOST", "")
 QUEUE_NAME = os.environ.get("INGRESS_QUEUE_NAME", "")
+FAILURE_QUEUE_NAME = os.environ.get("FAILURE_QUEUE_NAME", "failed-scheduled-jobs")
 CONSUMER_USERNAME = os.environ.get("QUEUE_USER", "")
 CONSUMER_PASSWORD = os.environ.get("QUEUE_PASSWORD", "")
 REDUCE_USER_ID = os.environ.get("REDUCE_USER_ID", "")
@@ -166,8 +167,9 @@ def process_simple_message(message: dict[str, Any]) -> None:
             taints=taints,
             affinity=affinity,
         )
-    except Exception as exception:
-        logger.exception(exception)
+    except Exception:
+        logger.exception("Failed to process simple message")
+        raise
 
 
 def process_rerun_message(message: dict[str, Any]) -> None:
@@ -210,8 +212,9 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             taints=taints,
             affinity=affinity,
         )
-    except Exception as exception:
-        logger.exception(exception)
+    except Exception:
+        logger.exception("Failed to process rerun message")
+        raise
 
 
 def process_autoreduction_message(message: dict[str, Any]) -> None:
@@ -273,8 +276,9 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             taints=taints,
             affinity=affinity,
         )
-    except Exception as exception:
-        logger.exception(exception)
+    except Exception:
+        logger.exception("Failed to process autoreduction message")
+        raise
 
 
 def process_message(message: dict[str, Any]) -> None:
@@ -297,7 +301,7 @@ def process_message(message: dict[str, Any]) -> None:
             logger.info("Processing autoreduction message")
             process_autoreduction_message(message)
         case _:
-            logger.warn("message type not recognised, not starting job. Message: ", message)
+            raise ValueError(f"message type not recognised, not starting job. Message: {message}")
 
 
 def write_readiness_probe_file() -> None:
@@ -320,6 +324,7 @@ def main() -> None:
         username=CONSUMER_USERNAME,
         password=CONSUMER_PASSWORD,
         queue_name=QUEUE_NAME,
+        failure_queue_name=FAILURE_QUEUE_NAME,
     )
     consumer.start_consuming(write_readiness_probe_file)
 
