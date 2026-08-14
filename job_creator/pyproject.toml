@@ -5,7 +5,7 @@ version = "0.0.1"
 requires-python = ">= 3.11"
 dependencies = [
     "kubernetes==36.0.3",
-    "pika==1.4.2",
+    "pika==1.4.4",
 ]
 
 [project.urls]
@@ -17,7 +17,7 @@ jobcreator = "jobcreator.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.16.0",
+    "ruff==0.16.2",
     "mypy==2.3.0",
     "pytest==9.1.1",
     "types-requests==2.33.0.20260712"
