@@ -16,15 +16,15 @@ jobwatcher = "jobwatcher.main:main"
 [project.optional-dependencies]
 formatting = [
     "toml==0.10.2",
-    "ruff==0.16.2",
-    "mypy==2.3.0",
+    "ruff==0.16.3",
+    "mypy==2.3.1",
     "pytest==9.1.1",
     "sqlalchemy-stubs==0.4",
     "types-requests==2.33.0.20260712"
 ]
 
 test = [
-    "hypothesis==6.165.3",
+    "hypothesis==6.165.9",
     "pytest==9.1.1",
     "pytest-cov==7.1.0",
     "pytest-random-order==1.2.0"
