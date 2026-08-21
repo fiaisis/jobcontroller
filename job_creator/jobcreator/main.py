@@ -46,7 +46,19 @@ CONSUMER_USERNAME = os.environ.get("QUEUE_USER", "")
 CONSUMER_PASSWORD = os.environ.get("QUEUE_PASSWORD", "")
 REDUCE_USER_ID = os.environ.get("REDUCE_USER_ID", "")
 JOB_NAMESPACE = os.environ.get("JOB_NAMESPACE", "fia")
-JOB_CREATOR = JobCreator(dev_mode=DEV_MODE, watcher_sha=WATCHER_SHA)
+JOB_CREATOR: JobCreator | None = None
+
+
+def get_job_creator() -> JobCreator:
+    """Use this Singleton pattern to allow for trivial mocking within testing infrastructure, not strictly needed but
+    trivialises test implementation for mocking out the JobCreator."""
+    global JOB_CREATOR  # noqa: PLW0603
+    if JOB_CREATOR is None:
+        if WATCHER_SHA is None:
+            raise OSError("WATCHER_SHA not set in the environment, please add it.")
+        JOB_CREATOR = JobCreator(dev_mode=DEV_MODE, watcher_sha=WATCHER_SHA)
+    return JOB_CREATOR
+
 
 CEPH_CREDS_SECRET_NAME = os.environ.get("CEPH_CREDS_SECRET_NAME", "ceph-creds")
 CEPH_CREDS_SECRET_NAMESPACE = os.environ.get("CEPH_CREDS_SECRET_NAMESPACE", "fia")
@@ -59,7 +71,7 @@ MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e
 MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", str(60 * 60 * 6)))
 
 
-def _generate_special_pvs(instrument: str) -> list[str]:
+def _generate_special_pvs(instrument: str, additional_values: dict[str, Any]) -> list[str]:
     """
     A generic function for, based on passed args, returning what the special persistent volumes should be.
     """
@@ -68,19 +80,31 @@ def _generate_special_pvs(instrument: str) -> list[str]:
     match instrument.lower():
         case "imat":
             logger.info("Special PV for %s added.", instrument)
-            special_pvs.append("imat")
+            if "ngem" in additional_values and additional_values["ngem"] == "true":
+                special_pvs.append("ngem")
+            else:
+                special_pvs.append("imat")
+        case "ines":
+            logger.info("Special PV for %s added.", instrument)
+            if "ngem" in additional_values and additional_values["ngem"] == "true":
+                special_pvs.append("ngem")
+            else:
+                special_pvs.append("ines")
         case _:
             logger.info("No special PV needed for %s", instrument)
 
     return special_pvs
 
 
-def _select_runner_image(instrument: str) -> str:
+def _select_runner_image(instrument: str, additional_values: dict[str, Any]) -> str:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
     match instrument.lower():
         case "imat":
+            if "ngem" in additional_values and additional_values["ngem"] == "true":
+                # For ngem we want to return the default mantid runner. INES always wants mantid default runner.
+                return DEFAULT_RUNNER
             if IMAGING_RUNNER_SHA is not None:
                 logger.info("Imaging runner image selected for %s ", instrument)
                 return IMAGING_RUNNER
@@ -91,7 +115,9 @@ def _select_runner_image(instrument: str) -> str:
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+def _select_taints_and_affinity(
+    instrument: str, additional_values: dict[str, Any]
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
     """
@@ -100,9 +126,10 @@ def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], 
 
     match instrument.lower():
         case "imat":
-            logger.info("Applying taint to the job on instrument %s", instrument)
-            taints.append({"key": "nvidia.com/gpu", "effect": "NoSchedule", "operator": "Exists"})
-            affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
+            if "ngem" not in additional_values or additional_values["ngem"] != "true":
+                logger.info("Applying taint to the job on instrument %s", instrument)
+                taints.append({"key": "nvidia.com/gpu", "effect": "NoSchedule", "operator": "Exists"})
+                affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
         case _:
             logger.info("No taints applied to %s runners", instrument)
 
@@ -146,7 +173,7 @@ def process_simple_message(message: dict[str, Any]) -> None:
             {"user_number": str(user_number)} if user_number else {"experiment_number": str(experiment_number)}
         )
         ceph_mount_path = create_ceph_mount_path_simple(**ceph_mount_path_kwargs)
-        JOB_CREATOR.spawn_job(
+        get_job_creator().spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
@@ -185,12 +212,16 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             rb_number=str(message["rb_number"]),
         )
 
-        special_pvs = _generate_special_pvs(instrument=message["instrument"])
-        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"])
+        special_pvs = _generate_special_pvs(
+            instrument=message["instrument"], additional_values=message.get("additional_values", {})
+        )
+        taints, affinity = _select_taints_and_affinity(
+            instrument=message["instrument"], additional_values=message.get("additional_values", {})
+        )
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
-        JOB_CREATOR.spawn_job(
+        get_job_creator().spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
@@ -226,7 +257,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
         instrument_name = message["instrument"]
         runner_image = message.get("runner_image")
         if runner_image is None:
-            runner_image = _select_runner_image(instrument_name)
+            runner_image = _select_runner_image(instrument_name, message["additional_values"])
         runner_image = find_sha256_of_image(runner_image)
         autoreduction_request = {
             "filename": filename,
@@ -242,8 +273,10 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             "runner_image": runner_image,
         }
 
-        special_pvs = _generate_special_pvs(instrument=instrument_name)
-        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"])
+        special_pvs = _generate_special_pvs(instrument=instrument_name, additional_values=message["additional_values"])
+        taints, affinity = _select_taints_and_affinity(
+            instrument=message["instrument"], additional_values=message["additional_values"]
+        )
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{filename.lower()}-{uuid.uuid4().hex!s}"
@@ -253,7 +286,7 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             autoreduction_request=autoreduction_request,
         )
         ceph_mount_path = create_ceph_mount_path_autoreduction(instrument_name, rb_number)
-        JOB_CREATOR.spawn_job(
+        get_job_creator().spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
