@@ -4,9 +4,13 @@ from unittest.mock import call
 
 from jobcreator.job_creator import (
     JobCreator,
+    _generate_affinities,
+    _generate_tolerations_from_taints,
     _setup_ceph_pv,
     _setup_extras_pv,
     _setup_extras_pvc,
+    _setup_imat_pv_and_pvcs,
+    _setup_ngem_pv_and_pvcs,
     _setup_pvc,
     _setup_smb_pv,
 )
@@ -155,6 +159,83 @@ def test_setup_extras_pv(client):
     client.V1SecretReference.assert_called_once_with(name="manila-creds", namespace=secret_namespace)
 
 
+EXPECTED_TOLERATIONS_COUNT = 2
+
+
+@mock.patch("jobcreator.job_creator.client")
+def test_generate_tolerations_from_taints(client):
+    taints = [
+        {"key": "key1", "value": "value1", "operator": "Equal", "effect": "NoSchedule"},
+        {"key": "key2", "operator": "Exists", "effect": "NoExecute"},
+    ]
+    tolerations = _generate_tolerations_from_taints(taints)
+
+    assert len(tolerations) == EXPECTED_TOLERATIONS_COUNT
+    client.V1Toleration.assert_has_calls(
+        [
+            call(key="key1", value="value1", operator="Equal", effect="NoSchedule"),
+            call(key="key2", value=None, operator="Exists", effect="NoExecute"),
+        ]
+    )
+
+
+@mock.patch("jobcreator.job_creator.client")
+def test_generate_affinities_none(client):
+    affinity = _generate_affinities(None)
+    assert affinity == client.V1Affinity.return_value
+    client.V1Affinity.assert_called_once_with(pod_anti_affinity=client.V1PodAntiAffinity.return_value)
+
+
+@mock.patch("jobcreator.job_creator.logger")
+@mock.patch("jobcreator.job_creator.client")
+def test_generate_affinities_missing_key(client, logger):
+    node_affinity_dict = {"key": "some-key", "operator": "In"}  # missing "values"
+    _generate_affinities(node_affinity_dict)
+    logger.error.assert_called_once()
+    client.V1Affinity.assert_called_once_with(pod_anti_affinity=client.V1PodAntiAffinity.return_value)
+
+
+@mock.patch("jobcreator.job_creator.client")
+def test_generate_affinities_valid(client):
+    node_affinity_dict = {"key": "some-key", "operator": "In", "values": ["val1"]}
+    _generate_affinities(node_affinity_dict)
+    client.V1Affinity.assert_called_once_with(
+        pod_anti_affinity=client.V1PodAntiAffinity.return_value, node_affinity=client.V1NodeAffinity.return_value
+    )
+
+
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+def test_setup_ngem_pv_and_pvcs(setup_smb_pv, setup_pvc):
+    pv_names = []
+    pvc_names = []
+    _setup_ngem_pv_and_pvcs("job1", "ns1", pv_names, pvc_names)
+    setup_smb_pv.assert_called_once_with(
+        "job1-ngem-pv-smb", "archive-creds", "ns1", "//isis.cclrc.ac.uk/Science", [], "ReadWriteMany"
+    )
+    setup_pvc.assert_called_once_with("job1-ngem-pvc", "job1-ngem-pv-smb", "ns1", "ReadWriteMany")
+    assert pv_names == ["job1-ngem-pv-smb"]
+    assert pvc_names == ["job1-ngem-pvc"]
+
+
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+def test_setup_imat_pv_and_pvcs(setup_smb_pv, setup_pvc):
+    pv_names = []
+    pvc_names = []
+    _setup_imat_pv_and_pvcs("job1", "ns1", pv_names, pvc_names)
+    setup_smb_pv.assert_called_once_with(
+        "job1-ndximat-pv-smb",
+        "imat-creds",
+        "ns1",
+        "//NDXIMAT.isis.cclrc.ac.uk/data$/",
+        [],
+    )
+    setup_pvc.assert_called_once_with("job1-ndximat-pvc", "job1-ndximat-pv-smb", "ns1")
+    assert pv_names == ["job1-ndximat-pv-smb"]
+    assert pvc_names == ["job1-ndximat-pvc"]
+
+
 @mock.patch("jobcreator.job_creator.client")
 def test_setup_ceph_pv(client):
     pv_name = mock.MagicMock()
@@ -217,6 +298,61 @@ def test_jobcreator_init(mock_load_kubernetes_config):
     JobCreator("", False)
 
     mock_load_kubernetes_config.assert_called_once()
+
+
+@mock.patch("jobcreator.job_creator._setup_ngem_pv_and_pvcs")
+@mock.patch("jobcreator.job_creator._setup_imat_pv_and_pvcs")
+@mock.patch("jobcreator.job_creator._setup_extras_pv")
+@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_ceph_pv")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+@mock.patch("jobcreator.job_creator.client")
+def test_jobcreator_spawn_job_ngem(
+    client,
+    _,  # noqa: PT019
+    setup_ceph_pv,
+    setup_pvc,
+    setup_smb_pv,
+    setup_extras_pvc,
+    setup_extras_pv,
+    setup_imat_pv,
+    setup_ngem_pv,
+):
+    job_name = "test-job"
+    script = "test-script"
+    job_namespace = "test-ns"
+    watcher_sha = "test-sha"
+    job_creator = JobCreator(watcher_sha, False)
+
+    job_creator.spawn_job(
+        job_name=job_name,
+        script=script,
+        job_namespace=job_namespace,
+        ceph_creds_k8s_secret_name="some-secret-name",  # noqa: S106
+        ceph_creds_k8s_namespace="ns",
+        cluster_id="id",
+        fs_name="fs",
+        ceph_mount_path="/path",
+        job_id=1,
+        max_time_to_complete_job=100,
+        fia_api_host="host",
+        fia_api_api_key="key",
+        runner_image="image",
+        manila_share_id="mid",
+        manila_share_access_id="maid",
+        special_pvs=["ngem"],
+        taints=[],
+        affinity=None,
+    )
+
+    setup_ngem_pv.assert_called_once()
+    # Check that ngem volume and volume mount were added
+    # We check if V1Volume was called with name="ngem-mount"
+    assert any(c.kwargs.get("name") == "ngem-mount" for c in client.V1Volume.call_args_list)
+    # Check if V1VolumeMount was called with name="ngem-mount"
+    assert any(c.kwargs.get("name") == "ngem-mount" for c in client.V1VolumeMount.call_args_list)
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")

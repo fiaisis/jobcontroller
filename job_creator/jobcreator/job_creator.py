@@ -9,7 +9,14 @@ from kubernetes import client  # type: ignore[import-untyped]
 from jobcreator.utils import load_kubernetes_config, logger
 
 
-def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source: str, mount_options: list[str]) -> None:
+def _setup_smb_pv(
+    pv_name: str,
+    secret_name: str,
+    secret_namespace: str,
+    source: str,
+    mount_options: list[str],
+    access_mode: str = "ReadOnlyMany",
+) -> None:
     """
     Sets up an smb PV using the loaded kubeconfig as a destination
     :param pv_name: str, The name given to the smb-pv when it's made
@@ -17,7 +24,8 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     :param secret_namespace: str, the namespace of the secret
     :param source: str, The IP/url/uri that is used to mount the smb share
     :param mount_options: list, The mount options for the smb share
-    :return: str, the name of the archive PV
+    :param access_mode: str, The access mode for the PV. Defaults to "ReadOnlyMany"
+    :return: str, the name of the PV
     """
     metadata = client.V1ObjectMeta(name=pv_name, annotations={"pv.kubernetes.io/provisioned-by": "smb.csi.k8s.io"})
     secret_ref = client.V1SecretReference(name=secret_name, namespace=secret_namespace)
@@ -30,13 +38,13 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     )
     spec = client.V1PersistentVolumeSpec(
         capacity={"storage": "1000Gi"},
-        access_modes=["ReadOnlyMany"],
+        access_modes=[access_mode],
         persistent_volume_reclaim_policy="Retain",
         mount_options=mount_options,
         csi=csi,
     )
-    archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
-    client.CoreV1Api().create_persistent_volume(archive_pv)
+    pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
+    client.CoreV1Api().create_persistent_volume(pv)
 
 
 def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "ReadOnlyMany") -> None:
@@ -161,6 +169,15 @@ def _setup_ceph_pv(
     ceph_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
     client.CoreV1Api().create_persistent_volume(ceph_pv)
     return pv_name
+
+
+def _setup_ngem_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
+    ngem_pv_name = f"{job_name}-ngem-pv-smb"
+    ngem_pvc_name = f"{job_name}-ngem-pvc"
+    _setup_smb_pv(ngem_pv_name, "archive-creds", namespace, "//isis.cclrc.ac.uk/Science", [], "ReadWriteMany")
+    _setup_pvc(ngem_pvc_name, ngem_pv_name, namespace, "ReadWriteMany")
+    pv_names.append(ngem_pv_name)
+    pvc_names.append(ngem_pvc_name)
 
 
 def _setup_imat_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
@@ -385,6 +402,13 @@ class JobCreator:
             client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
         ]
         # Setup special PVs and add them to the volume mounts
+        if "ngem" in special_pvs:
+            _setup_ngem_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
+            ngem_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
+                claim_name=f"{job_name}-ngem-pvc", read_only=False
+            )
+            volumes.append(client.V1Volume(name="ngem-mount", persistent_volume_claim=ngem_pvc_source))
+            volumes_mounts.append(client.V1VolumeMount(name="ngem-mount", mount_path="/ngem"))
         if "imat" in special_pvs:
             _setup_imat_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
             imat_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
