@@ -596,6 +596,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
                 client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
                 client.V1VolumeMount(name="imat-mount", mount_path="/imat"),
+                client.V1VolumeMount(name="gem-mount", mount_path="/gem"),
                 client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"),  # noqa: S108
             ],
             resources=client.V1ResourceRequirements(limits={"nvidia.com/gpu": "1"}),
