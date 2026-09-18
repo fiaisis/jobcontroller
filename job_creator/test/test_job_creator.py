@@ -758,12 +758,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         call(claim_name=f"{job_name}-ndxgem-pvc", read_only=False)
         in client.V1PersistentVolumeClaimVolumeSource.call_args_list
     )
-    assert (
-        call(name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory"))
-        in client.V1Volume.call_args_list
-    )
-    assert call(name="dev-shm", mount_path="/dev/shm") in client.V1VolumeMount.call_args_list  # noqa: S108
-    assert client.V1Volume.call_count == 5  # noqa: PLR2004
+    assert client.V1Volume.call_count == 4  # noqa: PLR2004
     assert client.V1PersistentVolumeClaimVolumeSource.call_count == 4  # noqa: PLR2004
     assert (
         call(
