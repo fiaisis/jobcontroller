@@ -717,9 +717,8 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         service_account_name="jobwatcher",
         containers=[client.V1Container.return_value, client.V1Container.return_value],
         restart_policy="Never",
-        tolerations=[client.V1Toleration.return_value],
+        tolerations=[],
         volumes=[
-            client.V1Volume.return_value,
             client.V1Volume.return_value,
             client.V1Volume.return_value,
             client.V1Volume.return_value,
