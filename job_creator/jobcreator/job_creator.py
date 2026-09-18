@@ -415,7 +415,6 @@ class JobCreator:
         # userspace driver libraries (libcuda.so.*) into the container.
         gpu_job = "imat" in special_pvs
 
-
         # GEM requires a volume with write access, in order to perform some of the reduction algorithms,
         # for which we need to generate and move/copy some calibration files
         if "gem" in special_pvs:
@@ -425,7 +424,6 @@ class JobCreator:
             )
             volumes.append(client.V1Volume(name="gem-mount", persistent_volume_claim=gem_pvc_source))
             volumes_mounts.append(client.V1VolumeMount(name="gem-mount", mount_path="/gem", read_only=False))
-
 
         main_container = client.V1Container(
             name=job_name,
