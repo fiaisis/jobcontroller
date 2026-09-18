@@ -23,7 +23,7 @@ FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
 
 
-def _find_json_blob(log_lines: list[str]):
+def _find_json_blob(log_lines: list[str]) -> str | None:
     for line in reversed(log_lines):
         try:
             if "{" in line and json.loads(line):
@@ -366,7 +366,7 @@ class JobWatcher:
             log_lines = logs.split("\n")
             output = _find_json_blob(log_lines)
             if output is None:
-                raise JSONDecodeError
+                raise JSONDecodeError("Output was None, it cannot be None")
             logger.info("Job %s has been completed with output: %s", job_name, output)
             job_output = json.loads(output)
         except JSONDecodeError as exception:
