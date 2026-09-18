@@ -605,7 +605,6 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     )
 
 
-
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
 @mock.patch("jobcreator.job_creator._setup_extras_pvc")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
@@ -794,7 +793,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
                 client.V1VolumeMount(name="gem-mount", mount_path="/gem"),
                 client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"),  # noqa: S108
-            ]
+            ],
         )
         in client.V1Container.call_args_list
     )
@@ -807,7 +806,6 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         fs_name,
         ceph_mount_path,
     )
-
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
