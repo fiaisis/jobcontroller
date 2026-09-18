@@ -69,6 +69,9 @@ def _generate_special_pvs(instrument: str) -> list[str]:
         case "imat":
             logger.info("Special PV for %s added.", instrument)
             special_pvs.append("imat")
+        case "gem":
+            logger.info("Special PC for %s added.", instrument)
+            special_pvs.append("gem")
         case _:
             logger.info("No special PV needed for %s", instrument)
 

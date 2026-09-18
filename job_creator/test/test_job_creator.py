@@ -612,6 +612,203 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
 @mock.patch("jobcreator.job_creator.client")
+def test_jobcreator_spawn_job_dev_mode_true_gem(
+    client,
+    _,  # noqa: PT019
+    setup_ceph_pv,
+    setup_smb_pv,
+    setup_pvc,
+    setup_extras_pvc,
+    setup_extras_pv,
+):
+    job_name = mock.MagicMock()
+    script = mock.MagicMock()
+    job_namespace = mock.MagicMock()
+    ceph_creds_k8s_secret_name = mock.MagicMock()
+    ceph_creds_k8s_namespace = mock.MagicMock()
+    cluster_id = mock.MagicMock()
+    fs_name = mock.MagicMock()
+    ceph_mount_path = mock.MagicMock()
+    reduction_id = random.randint(1, 100)  # noqa: S311
+    max_time_to_complete_job = random.randint(1, 20000)  # noqa: S311
+    fia_api_host = mock.MagicMock()
+    fia_api_api_key = mock.MagicMock()
+    watcher_sha = mock.MagicMock()
+    job_creator = JobCreator(watcher_sha, False)
+    runner_image = mock.MagicMock()
+    manila_share_id = mock.MagicMock()
+    manila_share_access_id = mock.MagicMock()
+    special_pvs = ["gem"]
+    taints = []
+    affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
+
+    job_creator.spawn_job(
+        job_name,
+        script,
+        job_namespace,
+        ceph_creds_k8s_secret_name,
+        ceph_creds_k8s_namespace,
+        cluster_id,
+        fs_name,
+        ceph_mount_path,
+        reduction_id,
+        max_time_to_complete_job,
+        fia_api_host,
+        fia_api_api_key,
+        runner_image,
+        manila_share_id,
+        manila_share_access_id,
+        special_pvs,
+        taints,
+        affinity,
+    )
+
+    assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["namespace"] == job_namespace
+    assert client.BatchV1Api.return_value.create_namespaced_job.call_args.kwargs["body"] == client.V1Job.return_value
+    client.V1Job.assert_called_once_with(
+        api_version="batch/v1",
+        kind="Job",
+        metadata=client.V1ObjectMeta.return_value,
+        spec=client.V1JobSpec.return_value,
+    )
+
+    assert (
+        call(labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"}) in client.V1ObjectMeta.call_args_list
+    )
+    assert client.V1ObjectMeta.call_count == 2  # noqa: PLR2004
+    client.V1JobSpec.assert_called_once_with(
+        template=client.V1PodTemplateSpec.return_value,
+        backoff_limit=0,
+        ttl_seconds_after_finished=21600,
+    )
+    client.V1PodTemplateSpec.assert_called_once_with(
+        spec=client.V1PodSpec.return_value, metadata=client.V1ObjectMeta.return_value
+    )
+    client.V1LabelSelector.assert_called_once_with(
+        match_labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"},
+    )
+    client.V1PodAffinityTerm.assert_called_once_with(
+        topology_key="kubernetes.io/hostname",
+        label_selector=client.V1LabelSelector.return_value,
+    )
+    client.V1WeightedPodAffinityTerm.assert_called_once_with(
+        weight=100,
+        pod_affinity_term=client.V1PodAffinityTerm.return_value,
+    )
+    client.V1PodAntiAffinity.assert_called_once_with(
+        preferred_during_scheduling_ignored_during_execution=[client.V1WeightedPodAffinityTerm.return_value],
+    )
+    client.V1NodeAffinity.assert_called_once_with(
+        required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
+            node_selector_terms=[
+                client.V1NodeSelectorTerm(
+                    match_expressions=[
+                        client.V1NodeSelectorRequirement(key="node-type", operator="In", values=["gpu-worker"])
+                    ]
+                )
+            ]
+        )
+    )
+    client.V1Affinity.assert_called_once_with(
+        pod_anti_affinity=client.V1PodAntiAffinity.return_value, node_affinity=client.V1NodeAffinity.return_value
+    )
+    client.V1PodSpec.assert_called_once_with(
+        affinity=client.V1Affinity.return_value,
+        service_account_name="jobwatcher",
+        containers=[client.V1Container.return_value, client.V1Container.return_value],
+        restart_policy="Never",
+        tolerations=[],
+        volumes=[
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+            client.V1Volume.return_value,
+        ],
+        runtime_class_name=None,
+    )
+    assert (
+        call(name="ceph-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
+        in client.V1Volume.call_args_list
+    )
+    assert (
+        call(claim_name=f"{job_name}-ceph-pvc", read_only=False)
+        in client.V1PersistentVolumeClaimVolumeSource.call_args_list
+    )
+    assert (
+        call(name="extras-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
+        in client.V1Volume.call_args_list
+    )
+    assert (
+        call(claim_name=f"{job_name}-extras-pvc", read_only=True)
+        in client.V1PersistentVolumeClaimVolumeSource.call_args_list
+    )
+    assert (
+        call(name="archive-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
+        in client.V1Volume.call_args_list
+    )
+    assert (
+        call(claim_name=f"{job_name}-archive-pvc", read_only=True)
+        in client.V1PersistentVolumeClaimVolumeSource.call_args_list
+    )
+    assert (
+        call(name="gem-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
+        in client.V1Volume.call_args_list
+    )
+    assert (
+        call(claim_name=f"{job_name}-ndxgem-pvc", read_only=False)
+        in client.V1PersistentVolumeClaimVolumeSource.call_args_list
+    )
+    assert client.V1Volume.call_count == 4  # noqa: PLR2004
+    assert client.V1PersistentVolumeClaimVolumeSource.call_count == 4  # noqa: PLR2004
+    assert (
+        call(
+            name="job-watcher",
+            image=f"ghcr.io/fiaisis/jobwatcher@sha256:{watcher_sha}",
+            env=[
+                client.V1EnvVar(name="FIA_API_HOST", value=fia_api_host),
+                client.V1EnvVar(name="FIA_API_API_KEY", value=fia_api_api_key),
+                client.V1EnvVar(name="MAX_TIME_TO_COMPLETE_JOB", value=str(max_time_to_complete_job)),
+                client.V1EnvVar(name="CONTAINER_NAME", value=job_name),
+                client.V1EnvVar(name="JOB_NAME", value=job_name),
+                client.V1EnvVar(name="POD_NAME", value=job_name),
+            ],
+        )
+        in client.V1Container.call_args_list
+    )
+    assert (
+        call(
+            name=job_name,
+            image=runner_image,
+            args=[script],
+            env=[client.V1EnvVar(name="PYTHONUNBUFFERED", value="1")],
+            volume_mounts=[
+                client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
+                client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
+                client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
+                client.V1VolumeMount(name="gem-mount", mount_path="/gem"),
+            ],
+            resources=None,
+        )
+        in client.V1Container.call_args_list
+    )
+    assert client.V1Container.call_count == 2  # noqa: PLR2004
+    setup_ceph_pv.assert_called_once_with(
+        str(job_name) + "-ceph-pv",
+        ceph_creds_k8s_secret_name,
+        ceph_creds_k8s_namespace,
+        cluster_id,
+        fs_name,
+        ceph_mount_path,
+    )
+
+
+@mock.patch("jobcreator.job_creator._setup_extras_pv")
+@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_ceph_pv")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+@mock.patch("jobcreator.job_creator.client")
 def test_jobcreator_spawn_job_dev_mode_false(
     client,
     _,  # noqa: PT019
