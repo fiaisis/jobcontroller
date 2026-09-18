@@ -775,6 +775,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         )
         in client.V1Container.call_args_list
     )
+    print(client.V1Container.volume_mounts)
     assert (
         call(
             name=job_name,
@@ -787,6 +788,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
                 client.V1VolumeMount(name="gem-mount", mount_path="/gem")
             ],
+            resources=None,
         )
         in client.V1Container.call_args_list
     )
