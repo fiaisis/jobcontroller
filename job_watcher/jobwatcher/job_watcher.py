@@ -23,6 +23,16 @@ FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
 
 
+def _find_json_blob(log_lines: list[str]):
+    for line in reversed(log_lines):
+        try:
+            if "{" in line and json.loads(line):
+                return line
+        except JSONDecodeError:
+            pass
+    return None
+
+
 def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
     """
     Delete the PVCs associated with the job
@@ -354,8 +364,9 @@ class JobWatcher:
                 name=self.pod.metadata.name, namespace=self.namespace, container=self.container_name
             )
             log_lines = logs.split("\n")
-            # Get second to last line if more than one (last line is empty)
-            output = log_lines[-1] if len(log_lines) == 1 else log_lines[-2]
+            output = _find_json_blob(log_lines)
+            if output is None:
+                raise JSONDecodeError
             logger.info("Job %s has been completed with output: %s", job_name, output)
             job_output = json.loads(output)
         except JSONDecodeError as exception:
