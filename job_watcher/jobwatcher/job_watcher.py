@@ -366,16 +366,16 @@ class JobWatcher:
             log_lines = logs.split("\n")
             output = _find_json_blob(log_lines)
             if output is None:
-                raise JSONDecodeError("Output was None, it cannot be None")
+                raise JSONDecodeError("Output was None, it cannot be None", "", 0)
             logger.info("Job %s has been completed with output: %s", job_name, output)
             job_output = json.loads(output)
         except JSONDecodeError as exception:
-            logger.error("Last message from job is not a JSON string")
+            logger.error("Last messages in job does not contain a JSON string or it could not be found.")
             logger.exception(exception)
             job_output = {
                 "status": "UNSUCCESSFUL",
                 "output_files": [],
-                "status_message": f"{exception!s}",
+                "status_message": f"{exception!s}, JSON Decode of output was unsuccessful, please contact support",
                 "stacktrace": "",
             }
         except TypeError as exception:
