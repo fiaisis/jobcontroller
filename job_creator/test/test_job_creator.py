@@ -725,7 +725,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
             client.V1Volume.return_value,
             client.V1Volume.return_value,
         ],
-        runtime_class_name="nvidia",
+        runtime_class_name=None,
     )
     assert (
         call(name="ceph-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
