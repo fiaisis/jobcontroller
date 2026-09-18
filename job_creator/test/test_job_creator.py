@@ -434,7 +434,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     runner_image = mock.MagicMock()
     manila_share_id = mock.MagicMock()
     manila_share_access_id = mock.MagicMock()
-    special_pvs = ["imat"]
+    special_pvs = ["imat", "gem"]
     taints = [{"key": "nvidia.com/gpu", "effect": "NoSchedule", "operator": "Exists"}]
     affinity = {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
 
@@ -559,9 +559,17 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
         call(name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory"))
         in client.V1Volume.call_args_list
     )
+    assert (
+        call(name="gem-mount", persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource.return_value)
+        in client.V1Volume.call_args_list
+    )
+    assert (
+        call(claim_name=f"{job_name}-ndxgem-pvc", read_only=False)
+        in client.V1PersistentVolumeClaimVolumeSource.call_args_list
+    )
     assert call(name="dev-shm", mount_path="/dev/shm") in client.V1VolumeMount.call_args_list  # noqa: S108
-    assert client.V1Volume.call_count == 5  # noqa: PLR2004
-    assert client.V1PersistentVolumeClaimVolumeSource.call_count == 4  # noqa: PLR2004
+    assert client.V1Volume.call_count == 6  # noqa: PLR2004
+    assert client.V1PersistentVolumeClaimVolumeSource.call_count == 5  # noqa: PLR2004
     assert (
         call(
             name="job-watcher",
