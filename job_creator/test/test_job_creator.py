@@ -786,7 +786,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
                 client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
                 client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
                 client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
-                client.V1VolumeMount(name="gem-mount", mount_path="/gem")
+                client.V1VolumeMount(name="gem-mount", mount_path="/gem"),
             ],
             resources=None,
         )
