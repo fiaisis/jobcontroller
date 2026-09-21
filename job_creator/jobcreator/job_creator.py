@@ -172,9 +172,22 @@ def _setup_imat_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], 
     pvc_names.append(imat_pvc_name)
 
 
-def _setup_gem_pv_and_pvcs(job_name: str, job_namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
+def _setup_gem_pv_and_pvcs(
+    job_name: str,
+    job_namespace: str,
+    pv_names: list[str],
+    pvc_names: list[str],
+    manila_share_id: str,
+    manila_share_access_id: str,
+) -> None:
     gem_pv_name = f"{job_name}-ndxgem-pv"
     gem_pvc_name = f"{job_name}-ndxgem-pvc"
+    _setup_extras_pv(
+        job_name=job_name,
+        secret_namespace=job_namespace,
+        manila_share_id=manila_share_id,
+        manila_share_access_id=manila_share_access_id,
+    )
     _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace)
     pv_names.append(gem_pv_name)
     pvc_names.append(gem_pvc_name)
@@ -418,7 +431,14 @@ class JobCreator:
         # GEM requires a volume with write access, in order to perform some of the reduction algorithms,
         # for which we need to generate and move/copy some calibration files
         if "gem" in special_pvs:
-            _setup_gem_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
+            _setup_gem_pv_and_pvcs(
+                job_name,
+                job_namespace,
+                pv_names,
+                pvc_names,
+                manila_share_id=manila_share_id,
+                manila_share_access_id=manila_share_access_id,
+            )
             gem_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
                 claim_name=f"{job_name}-ndxgem-pvc", read_only=False
             )
