@@ -9,6 +9,7 @@ from jobcreator.job_creator import (
     _setup_extras_pvc,
     _setup_pvc,
     _setup_smb_pv,
+    _setup_pv,
 )
 
 
@@ -471,7 +472,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     assert (
         call(labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"}) in client.V1ObjectMeta.call_args_list
     )
-    assert client.V1ObjectMeta.call_count == 2  # noqa: PLR2004
+    assert client.V1ObjectMeta.call_count == 3  # noqa: PLR2004
     client.V1JobSpec.assert_called_once_with(
         template=client.V1PodTemplateSpec.return_value,
         backoff_limit=0,
@@ -607,7 +608,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
 @mock.patch("jobcreator.job_creator._setup_extras_pvc")
-@mock.patch("jobcreator.job_creator._setup_smb_pv")
+@mock.patch("jobcreator.job_creator._setup_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
@@ -616,7 +617,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
-    setup_smb_pv,
+    setup_pv,
     setup_pvc,
     setup_extras_pvc,
     setup_extras_pv,
@@ -799,6 +800,13 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         cluster_id,
         fs_name,
         ceph_mount_path,
+    )
+    setup_pv.assert_called_once_with(
+        str(job_name),
+        False,
+        job_namespace,
+        manila_share_id,
+        manila_share_access_id
     )
 
 
