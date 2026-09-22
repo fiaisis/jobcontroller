@@ -66,7 +66,7 @@ def test_setup_pvc(client):
     namespace = mock.MagicMock()
     access_mode = mock.MagicMock()
 
-    _setup_pvc(pvc_name, pv_name, namespace, access_mode)
+    _setup_pvc(pvc_name, pv_name, namespace, [access_mode])
 
     client.V1ObjectMeta.assert_called_once_with(name=pvc_name)
     client.V1ResourceRequirements.assert_called_once_with(requests={"storage": "1000Gi"})
@@ -839,7 +839,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         ceph_mount_path,
     )
     setup_pv.assert_called_once_with(
-        pv_name=job_name,
+        pv_name="{job_name}-ndxgem-pv",
         read_only=False,
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
