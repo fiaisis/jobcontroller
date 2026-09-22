@@ -6,8 +6,8 @@ from jobcreator.job_creator import (
     JobCreator,
     _setup_ceph_pv,
     _setup_extras_pv,
-    _setup_pv,
     _setup_extras_pvc,
+    _setup_pv,
     _setup_pvc,
     _setup_smb_pv,
 )
@@ -191,6 +191,7 @@ def test_setup_pv(client):
         node_publish_secret_ref=client.V1SecretReference.return_value,
     )
     client.V1SecretReference.assert_called_once_with(name="manila-creds", namespace=secret_namespace)
+
 
 @mock.patch("jobcreator.job_creator.client")
 def test_setup_ceph_pv(client):
