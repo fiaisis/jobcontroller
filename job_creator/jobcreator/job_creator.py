@@ -143,7 +143,7 @@ def _setup_pv(
     :return: str, the name of the PV
     """
     if access_modes is None:
-        access_modes= ["ReadOnlyMany"]
+        access_modes = ["ReadOnlyMany"]
     metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
     secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
     csi = client.V1CSIPersistentVolumeSource(
