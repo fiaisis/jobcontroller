@@ -39,17 +39,19 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     client.CoreV1Api().create_persistent_volume(archive_pv)
 
 
-def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_modes: list[str] = ["ReadOnlyMany"]) -> None:
+def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_modes: list[str] | None = None) -> None:
     """
     Set up a PVC for the given pvc_name and pv_name in the given namespace
     :param pvc_name: str, The name of the pvc to make
     :param pv_name: str, The name of the pv to be claimed
     :param namespace: str, The namespace to create the pvc in
     """
+    if access_modes is None:
+        access_modes = ["ReadOnlyMany"]
     metadata = client.V1ObjectMeta(name=pvc_name)
     resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
     spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=[access_modes],
+        access_modes=access_modes,
         resources=resources,
         volume_name=pv_name,
         storage_class_name="",
@@ -129,7 +131,7 @@ def _setup_pv(
     secret_namespace: str,
     manila_share_id: str,
     manila_share_access_id: str,
-    access_modes: list[str] = ["ReadOnlyMany"],
+    access_modes: list[str] | None = None,
 ) -> str:
     """
     Setups up the extras PV using the loaded kubeconfig as destination
@@ -140,6 +142,8 @@ def _setup_pv(
     :param secret_namespace: the namespace where the manila-creds secret is.
     :return: str, the name of the PV
     """
+    if access_modes is None:
+        access_modes= ["ReadOnlyMany"]
     metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
     secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
     csi = client.V1CSIPersistentVolumeSource(
