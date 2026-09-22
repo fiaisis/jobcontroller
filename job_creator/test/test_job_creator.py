@@ -9,7 +9,6 @@ from jobcreator.job_creator import (
     _setup_extras_pvc,
     _setup_pvc,
     _setup_smb_pv,
-    _setup_pv,
 )
 
 
@@ -801,13 +800,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         fs_name,
         ceph_mount_path,
     )
-    setup_pv.assert_called_once_with(
-        str(job_name),
-        False,
-        job_namespace,
-        manila_share_id,
-        manila_share_access_id
-    )
+    setup_pv.assert_called_once_with(str(job_name), False, job_namespace, manila_share_id, manila_share_access_id)
 
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
