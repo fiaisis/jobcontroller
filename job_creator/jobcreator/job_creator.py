@@ -123,6 +123,37 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
     return pv_name
 
 
+def _setup_pv(job_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str) -> str:
+    """
+    Setups up the extras PV using the loaded kubeconfig as destination
+    :param job_name: str, the name of the job the PV is for
+    :param manila_share_id: The id of the manila share to mount for extras
+    :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
+    manila share
+    :param secret_namespace: the namespace where the manila-creds secret is.
+    :return: str, the name of the PV
+    """
+    pv_name = f"{job_name}-pv"
+    metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
+    secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
+    csi = client.V1CSIPersistentVolumeSource(
+        driver="cephfs.manila.csi.openstack.org",
+        read_only=read_only,
+        volume_handle=pv_name,
+        volume_attributes={"shareID": manila_share_id, "shareAccessID": manila_share_access_id},
+        node_stage_secret_ref=secret_ref,
+        node_publish_secret_ref=secret_ref,
+    )
+    spec = client.V1PersistentVolumeSpec(
+        capacity={"storage": "1000Gi"},
+        access_modes=["ReadOnlyMany"],
+        csi=csi,
+    )
+    archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
+    client.CoreV1Api().create_persistent_volume(archive_pv)
+    return pv_name
+
+
 def _setup_ceph_pv(
     pv_name: str,
     ceph_creds_k8s_secret_name: str,
@@ -182,8 +213,9 @@ def _setup_gem_pv_and_pvcs(
 ) -> None:
     gem_pv_name = f"{job_name}-ndxgem-pv"
     gem_pvc_name = f"{job_name}-ndxgem-pvc"
-    _setup_extras_pv(
+    _setup_pv(
         job_name=job_name,
+        read_only=False,
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
