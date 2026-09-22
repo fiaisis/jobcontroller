@@ -124,7 +124,7 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
 
 
 def _setup_pv(
-    pv_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str
+    pv_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str, access_mode: str= "ReadOnlyMany"
 ) -> str:
     """
     Setups up the extras PV using the loaded kubeconfig as destination
@@ -147,7 +147,7 @@ def _setup_pv(
     )
     spec = client.V1PersistentVolumeSpec(
         capacity={"storage": "1000Gi"},
-        access_modes=["ReadOnlyMany"],
+        access_modes=access_mode,
         csi=csi,
     )
     archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
@@ -220,8 +220,9 @@ def _setup_gem_pv_and_pvcs(
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
+        access_mode="ReadWriteMany"
     )
-    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace)
+    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_mode="ReadWriteMany")
     pv_names.append(gem_pv_name)
     pvc_names.append(gem_pvc_name)
 
