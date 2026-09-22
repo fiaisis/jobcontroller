@@ -165,7 +165,7 @@ def test_setup_pv(client):
     manila_share_id = mock.MagicMock()
     manila_share_access_id = mock.MagicMock()
 
-    assert _setup_pv(job_name, False, secret_namespace, manila_share_id, manila_share_access_id) == pv_name
+    assert _setup_pv(pv_name, False, secret_namespace, manila_share_id, manila_share_access_id) == pv_name
 
     client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
         client.V1PersistentVolume.return_value,
@@ -839,11 +839,12 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         ceph_mount_path,
     )
     setup_pv.assert_called_once_with(
-        pv_name="{job_name}-ndxgem-pv",
+        pv_name=f"{job_name}-ndxgem-pv",
         read_only=False,
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
+        access_modes=["ReadWriteOnce"]
     )
 
 
