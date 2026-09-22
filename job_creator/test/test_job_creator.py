@@ -801,7 +801,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         ceph_mount_path,
     )
     setup_pv.assert_called_once_with(
-        job_name=str(job_name),
+        job_name=job_name,
         read_only=False,
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
