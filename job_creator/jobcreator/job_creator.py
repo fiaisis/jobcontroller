@@ -123,7 +123,9 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
     return pv_name
 
 
-def _setup_pv(job_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str) -> str:
+def _setup_pv(
+    job_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str
+) -> str:
     """
     Setups up the extras PV using the loaded kubeconfig as destination
     :param job_name: str, the name of the job the PV is for
