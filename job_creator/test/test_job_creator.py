@@ -471,7 +471,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     assert (
         call(labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"}) in client.V1ObjectMeta.call_args_list
     )
-    assert client.V1ObjectMeta.call_count == 3  # noqa: PLR2004
+    assert client.V1ObjectMeta.call_count == 2  # noqa: PLR2004
     client.V1JobSpec.assert_called_once_with(
         template=client.V1PodTemplateSpec.return_value,
         backoff_limit=0,
@@ -675,7 +675,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     assert (
         call(labels={"reduce.isis.cclrc.ac.uk/job-source": "automated-reduction"}) in client.V1ObjectMeta.call_args_list
     )
-    assert client.V1ObjectMeta.call_count == 2  # noqa: PLR2004
+    assert client.V1ObjectMeta.call_count == 3  # noqa: PLR2004
     client.V1JobSpec.assert_called_once_with(
         template=client.V1PodTemplateSpec.return_value,
         backoff_limit=0,
