@@ -616,8 +616,8 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
-    setup_pv,
     setup_pvc,
+    setup_pv,
     setup_extras_pvc,
     setup_extras_pv,
 ):
