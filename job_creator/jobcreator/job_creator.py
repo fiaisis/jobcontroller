@@ -225,9 +225,9 @@ def _setup_gem_pv_and_pvcs(
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
-        access_mode="ReadWriteMany",
+        access_mode="ReadWriteOnce",
     )
-    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_mode="ReadWriteMany")
+    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_mode="ReadWriteOnce")
     pv_names.append(gem_pv_name)
     pvc_names.append(gem_pvc_name)
 
