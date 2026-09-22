@@ -39,7 +39,7 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     client.CoreV1Api().create_persistent_volume(archive_pv)
 
 
-def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "ReadOnlyMany") -> None:
+def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_modes: list[str] = ["ReadOnlyMany"]) -> None:
     """
     Set up a PVC for the given pvc_name and pv_name in the given namespace
     :param pvc_name: str, The name of the pvc to make
@@ -49,7 +49,7 @@ def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "
     metadata = client.V1ObjectMeta(name=pvc_name)
     resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
     spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=[access_mode],
+        access_modes=[access_modes],
         resources=resources,
         volume_name=pv_name,
         storage_class_name="",
@@ -129,7 +129,7 @@ def _setup_pv(
     secret_namespace: str,
     manila_share_id: str,
     manila_share_access_id: str,
-    access_mode: str = "ReadOnlyMany",
+    access_modes: list[str] = ["ReadOnlyMany"],
 ) -> str:
     """
     Setups up the extras PV using the loaded kubeconfig as destination
@@ -152,7 +152,7 @@ def _setup_pv(
     )
     spec = client.V1PersistentVolumeSpec(
         capacity={"storage": "1000Gi"},
-        access_modes=access_mode,
+        access_modes=access_modes,
         csi=csi,
     )
     archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
@@ -225,9 +225,9 @@ def _setup_gem_pv_and_pvcs(
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
-        access_mode="ReadWriteOnce",
+        access_modes=["ReadWriteOnce"],
     )
-    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_mode="ReadWriteOnce")
+    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_modes=["ReadWriteOnce"])
     pv_names.append(gem_pv_name)
     pvc_names.append(gem_pvc_name)
 
