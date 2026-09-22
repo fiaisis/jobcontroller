@@ -407,7 +407,7 @@ class JobCreator:
             pv_names.append(ceph_pv_name)
 
             ceph_pvc_name = f"{job_name}-ceph-pvc"
-            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_mode="ReadWriteMany")
+            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_modes=["ReadWriteMany"])
             pvc_names.append(ceph_pvc_name)
 
             ceph_volume = client.V1Volume(
