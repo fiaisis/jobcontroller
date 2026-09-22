@@ -124,18 +124,17 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
 
 
 def _setup_pv(
-    job_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str
+    pv_name: str, read_only: bool, secret_namespace: str, manila_share_id: str, manila_share_access_id: str
 ) -> str:
     """
     Setups up the extras PV using the loaded kubeconfig as destination
-    :param job_name: str, the name of the job the PV is for
+    :param pv_name: str, the name of the job the PV is for
     :param manila_share_id: The id of the manila share to mount for extras
     :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
     manila share
     :param secret_namespace: the namespace where the manila-creds secret is.
     :return: str, the name of the PV
     """
-    pv_name = f"{job_name}-pv"
     metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
     secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
     csi = client.V1CSIPersistentVolumeSource(
@@ -216,7 +215,7 @@ def _setup_gem_pv_and_pvcs(
     gem_pv_name = f"{job_name}-ndxgem-pv"
     gem_pvc_name = f"{job_name}-ndxgem-pvc"
     _setup_pv(
-        job_name=job_name,
+        pv_name=gem_pv_name,
         read_only=False,
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
