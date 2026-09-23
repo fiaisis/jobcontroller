@@ -547,7 +547,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
     jw._update_job_status.assert_called_once_with(
         job_id,
         "UNSUCCESSFUL",
-        ": line 1 column 2 (char 1)",
+        ": line 1 column 2 (char 1), JSON Decode of output was unsuccessful, please contact support",
         [],
         str(start),
         "",
