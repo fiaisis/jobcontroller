@@ -64,7 +64,6 @@ def test_setup_pvc(client):
     pvc_name = mock.MagicMock()
     pv_name = mock.MagicMock()
     namespace = mock.MagicMock()
-    
 
     _setup_pvc(pvc_name, pv_name, namespace)
 
