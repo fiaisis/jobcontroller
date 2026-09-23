@@ -870,9 +870,7 @@ def test_normalize_logs_standard_string() -> None:
 
 def test_find_json_blob_with_byte_repr() -> None:
     raw_log = (
-        "b'creating mapping file...\\nReduction completed.\\n"
-        "{\"status\": \"Successful\", \"output_files\": \"GEM.nxs\"}\\n'"
+        'b\'creating mapping file...\\nReduction completed.\\n{"status": "Successful", "output_files": "GEM.nxs"}\\n\''
     )
     res = _find_json_blob([raw_log])
     assert res == '{"status": "Successful", "output_files": "GEM.nxs"}'
-

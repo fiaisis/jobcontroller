@@ -34,8 +34,7 @@ def _normalize_logs(log_data: Any) -> Any:
     if isinstance(log_data, bytes):
         return log_data.decode("utf-8", errors="replace")
     if isinstance(log_data, str) and (
-        (log_data.startswith("b'") and log_data.endswith("'"))
-        or (log_data.startswith('b"') and log_data.endswith('"'))
+        (log_data.startswith("b'") and log_data.endswith("'")) or (log_data.startswith('b"') and log_data.endswith('"'))
     ):
         with suppress(Exception):
             evaluated = ast.literal_eval(log_data)
