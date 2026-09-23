@@ -12,8 +12,10 @@ from hypothesis import given, strategies
 
 from jobwatcher.job_watcher import (
     JobWatcher,
+    _find_json_blob,
     _find_latest_raised_error_and_stacktrace_from_reversed_logs,
     _find_pod_from_partial_name,
+    _normalize_logs,
     clean_up_pvcs_for_job,
     clean_up_pvs_for_job,
 )
@@ -850,3 +852,27 @@ def test_update_job_status_retry_on_request_exception(n_exceptions: int) -> None
         assert mock_sleep.call_count == n_exceptions
         assert mock_logger_warning.call_count == n_exceptions
         mock_sleep.assert_has_calls([call(5)] * n_exceptions)
+
+
+def test_normalize_logs_bytes() -> None:
+    assert _normalize_logs(b"hello\nworld") == "hello\nworld"
+
+
+def test_normalize_logs_byte_repr_string() -> None:
+    byte_repr = "b'line 1\\nline 2\\n'"
+    assert _normalize_logs(byte_repr) == "line 1\nline 2\n"
+
+
+def test_normalize_logs_standard_string() -> None:
+    standard = "line 1\nline 2\n"
+    assert _normalize_logs(standard) == "line 1\nline 2\n"
+
+
+def test_find_json_blob_with_byte_repr() -> None:
+    raw_log = (
+        "b'creating mapping file...\\nReduction completed.\\n"
+        "{\"status\": \"Successful\", \"output_files\": \"GEM.nxs\"}\\n'"
+    )
+    res = _find_json_blob([raw_log])
+    assert res == '{"status": "Successful", "output_files": "GEM.nxs"}'
+
