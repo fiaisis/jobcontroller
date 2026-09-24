@@ -63,73 +63,13 @@ def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "
     client.CoreV1Api().create_namespaced_persistent_volume_claim(namespace=namespace, body=archive_pvc)
 
 
-def _setup_extras_pvc(job_name: str, job_namespace: str, pv_name: str) -> str:
-    """
-    Sets up the extras Manila PVC using the loaded kubeconfig as a destination
-    :param job_name: str, the name of the job that the PVC is made for
-    :param job_namespace: str, the namespace that the job is in
-    :param pv_name: str, the name of the PV the PVC is being made for
-    :return: str, the name of the PVC
-    """
-    pvc_name = f"{job_name}-extras-pvc"
-    metadata = client.V1ObjectMeta(name=pvc_name)
-    resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
-    match_expression = client.V1LabelSelectorRequirement(key="name", operator="In", values=[pv_name])
-    selector = client.V1LabelSelector(match_expressions=[match_expression])
-    spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=["ReadOnlyMany"],
-        resources=resources,
-        selector=selector,
-        storage_class_name="",
-    )
-    extras_pvc = client.V1PersistentVolumeClaim(
-        api_version="v1",
-        kind="PersistentVolumeClaim",
-        metadata=metadata,
-        spec=spec,
-    )
-    client.CoreV1Api().create_namespaced_persistent_volume_claim(namespace=job_namespace, body=extras_pvc)
-    return pvc_name
-
-
-def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str, manila_share_access_id: str) -> str:
-    """
-    Setups up the extras PV using the loaded kubeconfig as destination
-    :param job_name: str, the name of the job the PV is for
-    :param manila_share_id: The id of the manila share to mount for extras
-    :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
-    manila share
-    :param secret_namespace: the namespace where the manila-creds secret is.
-    :return: str, the name of the PV
-    """
-    pv_name = f"{job_name}-extras-pv"
-    metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
-    secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
-    csi = client.V1CSIPersistentVolumeSource(
-        driver="cephfs.manila.csi.openstack.org",
-        read_only=True,
-        volume_handle=pv_name,
-        volume_attributes={"shareID": manila_share_id, "shareAccessID": manila_share_access_id},
-        node_stage_secret_ref=secret_ref,
-        node_publish_secret_ref=secret_ref,
-    )
-    spec = client.V1PersistentVolumeSpec(
-        capacity={"storage": "1000Gi"},
-        access_modes=["ReadOnlyMany"],
-        csi=csi,
-    )
-    archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
-    client.CoreV1Api().create_persistent_volume(archive_pv)
-    return pv_name
-
-
-def _setup_gem_pv(
+def _setup_manila_pv(
     pv_name: str,
     read_only: bool,
     secret_namespace: str,
     manila_share_id: str,
     manila_share_access_id: str,
-    access_modes: list[str] | None = None,
+    access_mode: str = "ReadOnlyMany",
 ) -> str:
     """
     Setups up the extras PV using the loaded kubeconfig as destination
@@ -140,8 +80,6 @@ def _setup_gem_pv(
     :param secret_namespace: the namespace where the manila-creds secret is.
     :return: str, the name of the PV
     """
-    if access_modes is None:
-        access_modes = ["ReadOnlyMany"]
     metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
     secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
     csi = client.V1CSIPersistentVolumeSource(
@@ -154,7 +92,7 @@ def _setup_gem_pv(
     )
     spec = client.V1PersistentVolumeSpec(
         capacity={"storage": "1000Gi"},
-        access_modes=access_modes,
+        access_modes=[access_mode],
         csi=csi,
     )
     archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
@@ -221,13 +159,13 @@ def _setup_gem_pv_and_pvcs(
 ) -> None:
     gem_pv_name = f"{job_name}-ndxgem-pv"
     gem_pvc_name = f"{job_name}-ndxgem-pvc"
-    _setup_gem_pv(
+    _setup_manila_pv(
         pv_name=gem_pv_name,
         read_only=False,
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
-        access_modes=["ReadWriteOnce"],
+        access_mode="ReadWriteOnce",
     )
     _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_mode="ReadWriteOnce")
     pv_names.append(gem_pv_name)
@@ -377,8 +315,10 @@ class JobCreator:
         pvc_names.append(archive_pvc_name)
 
         # Setup Extras PV and PVC
-        extras_pv_name = _setup_extras_pv(
-            job_name=job_name,
+        pv_name = f"{job_name}-extras-pv"
+        extras_pv_name = _setup_manila_pv(
+            pv_name=pv_name,
+            read_only=True,
             secret_namespace=job_namespace,
             manila_share_id=manila_share_id,
             manila_share_access_id=manila_share_access_id,
