@@ -229,7 +229,7 @@ def _setup_gem_pv_and_pvcs(
         manila_share_access_id=manila_share_access_id,
         access_modes=["ReadWriteOnce"],
     )
-    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_modes=["ReadWriteOnce"])
+    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace, access_mode="ReadWriteOnce")
     pv_names.append(gem_pv_name)
     pvc_names.append(gem_pvc_name)
 
@@ -405,7 +405,7 @@ class JobCreator:
             pv_names.append(ceph_pv_name)
 
             ceph_pvc_name = f"{job_name}-ceph-pvc"
-            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_modes=["ReadWriteMany"])
+            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_mode="ReadWriteMany")
             pvc_names.append(ceph_pvc_name)
 
             ceph_volume = client.V1Volume(
