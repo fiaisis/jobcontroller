@@ -2,6 +2,8 @@
 Watch a kubernetes job, and when it ends update the DB with the results, and exit.
 """
 
+import ast
+import codecs
 import datetime
 import json
 import os
@@ -23,7 +25,33 @@ FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
 
 
+def _normalize_logs(log_data: Any) -> Any:
+    """
+    Normalise logs returned by the kubernetes client. In some environments or client
+    versions, read_namespaced_pod_log may return bytes or a string representation
+    of bytes (e.g. b'...' with escaped newlines).
+    """
+    if isinstance(log_data, bytes):
+        return log_data.decode("utf-8", errors="replace")
+    if isinstance(log_data, str) and (
+        (log_data.startswith("b'") and log_data.endswith("'")) or (log_data.startswith('b"') and log_data.endswith('"'))
+    ):
+        with suppress(Exception):
+            evaluated = ast.literal_eval(log_data)
+            if isinstance(evaluated, bytes):
+                return evaluated.decode("utf-8", errors="replace")
+        stripped = log_data[2:-1]
+        with suppress(Exception):
+            return codecs.decode(stripped.encode("latin1"), "unicode_escape")
+        return stripped.replace("\\n", "\n").replace('\\"', '"').replace("\\'", "'")
+    return log_data
+
+
 def _find_json_blob(log_lines: list[str]) -> str | None:
+    if len(log_lines) == 1 and isinstance(log_lines[0], str):
+        normalized = _normalize_logs(log_lines[0])
+        if "\n" in normalized:
+            log_lines = normalized.split("\n")
     for line in reversed(log_lines):
         try:
             if "{" in line and json.loads(line):
@@ -256,6 +284,7 @@ class JobWatcher:
                 since_seconds=seconds_in_30_minutes,
                 container=self.container_name,
             )
+            logs = _normalize_logs(logs)
             if logs == "":
                 logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_30_minutes)
                 return True
@@ -290,12 +319,13 @@ class JobWatcher:
         if self.pod is None:
             raise AttributeError("Pod must be set in the JobWatcher before calling this function.")
         v1_core = client.CoreV1Api()
-        logs = v1_core.read_namespaced_pod_log(
+        raw_logs = v1_core.read_namespaced_pod_log(
             name=self.pod.metadata.name,
             namespace=self.pod.metadata.namespace,
             tail_lines=50,
             container=self.container_name,
-        ).split("\n")
+        )
+        logs = _normalize_logs(raw_logs).split("\n")
         logs.reverse()
         return _find_latest_raised_error_and_stacktrace_from_reversed_logs(logs)
 
@@ -363,6 +393,7 @@ class JobWatcher:
             logs = v1_core.read_namespaced_pod_log(
                 name=self.pod.metadata.name, namespace=self.namespace, container=self.container_name
             )
+            logs = _normalize_logs(logs)
             log_lines = logs.split("\n")
             output = _find_json_blob(log_lines)
             if output is None:
