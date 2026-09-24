@@ -123,7 +123,7 @@ def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str,
     return pv_name
 
 
-def _setup_pv(
+def _setup_gem_pv(
     pv_name: str,
     read_only: bool,
     secret_namespace: str,
@@ -221,7 +221,7 @@ def _setup_gem_pv_and_pvcs(
 ) -> None:
     gem_pv_name = f"{job_name}-ndxgem-pv"
     gem_pvc_name = f"{job_name}-ndxgem-pvc"
-    _setup_pv(
+    _setup_gem_pv(
         pv_name=gem_pv_name,
         read_only=False,
         secret_namespace=job_namespace,

@@ -7,7 +7,7 @@ from jobcreator.job_creator import (
     _setup_ceph_pv,
     _setup_extras_pv,
     _setup_extras_pvc,
-    _setup_pv,
+    _setup_gem_pv,
     _setup_pvc,
     _setup_smb_pv,
 )
@@ -156,7 +156,7 @@ def test_setup_extras_pv(client):
 
 
 @mock.patch("jobcreator.job_creator.client")
-def test_setup_pv(client):
+def test_setup_gem_pv(client):
 
     job_name = str(mock.MagicMock())
     pv_name = f"{job_name}-pv"
@@ -164,7 +164,7 @@ def test_setup_pv(client):
     manila_share_id = mock.MagicMock()
     manila_share_access_id = mock.MagicMock()
 
-    assert _setup_pv(pv_name, False, secret_namespace, manila_share_id, manila_share_access_id) == pv_name
+    assert _setup_gem_pv(pv_name, False, secret_namespace, manila_share_id, manila_share_access_id) == pv_name
 
     client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
         client.V1PersistentVolume.return_value,
