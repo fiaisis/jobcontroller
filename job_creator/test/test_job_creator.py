@@ -644,7 +644,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
 
 @mock.patch("jobcreator.job_creator._setup_extras_pv")
 @mock.patch("jobcreator.job_creator._setup_extras_pvc")
-@mock.patch("jobcreator.job_creator._setup_pv")
+@mock.patch("jobcreator.job_creator._setup_gem_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
@@ -654,7 +654,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     _,  # noqa: PT019
     setup_ceph_pv,
     setup_pvc,
-    setup_pv,
+    setup_gem_pv,
     setup_extras_pvc,
     setup_extras_pv,
 ):
@@ -837,7 +837,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         fs_name,
         ceph_mount_path,
     )
-    setup_pv.assert_called_once_with(
+    setup_gem_pv.assert_called_once_with(
         pv_name=f"{job_name}-ndxgem-pv",
         read_only=False,
         secret_namespace=job_namespace,
