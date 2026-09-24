@@ -39,19 +39,17 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     client.CoreV1Api().create_persistent_volume(archive_pv)
 
 
-def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_modes: list[str] | None = None) -> None:
+def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "ReadOnlyMany") -> None:
     """
     Set up a PVC for the given pvc_name and pv_name in the given namespace
     :param pvc_name: str, The name of the pvc to make
     :param pv_name: str, The name of the pv to be claimed
     :param namespace: str, The namespace to create the pvc in
     """
-    if access_modes is None:
-        access_modes = ["ReadOnlyMany"]
     metadata = client.V1ObjectMeta(name=pvc_name)
     resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
     spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=access_modes,
+        access_modes=[access_mode],
         resources=resources,
         volume_name=pv_name,
         storage_class_name="",
