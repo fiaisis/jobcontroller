@@ -72,9 +72,9 @@ def _setup_manila_pv(
     access_mode: str = "ReadOnlyMany",
 ) -> str:
     """
-    Setups up the extras PV using the loaded kubeconfig as destination
+    Setups up a manila PV using the loaded kubeconfig as destination, for extras or gem, etc.
     :param pv_name: str, the name of the job the PV is for
-    :param manila_share_id: The id of the manila share to mount for extras
+    :param manila_share_id: The id of the manila share to mount
     :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
     manila share
     :param secret_namespace: the namespace where the manila-creds secret is.
