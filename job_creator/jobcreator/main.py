@@ -13,6 +13,7 @@ from typing import Any
 from jobcreator.job_creator import JobCreator
 from jobcreator.queue_consumer import QueueConsumer
 from jobcreator.script_acquisition import post_autoreduction_job
+from jobcreator.storage import VolumeBundle, build_job_volumes
 from jobcreator.utils import (
     create_ceph_mount_path_autoreduction,
     create_ceph_mount_path_simple,
@@ -57,6 +58,29 @@ MANILA_SHARE_ID = os.environ.get("MANILA_SHARE_ID", "05b75577-a8fb-4c87-a3f3-6a0
 MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e-486b-a89b-4fd741d04f69")
 
 MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", str(60 * 60 * 6)))
+
+
+def _build_job_storage(job_name: str, ceph_mount_path: str, special_pvs: list[str]) -> VolumeBundle:
+    """
+    Constructs the volume bundle for a job using the configured environment settings.
+    :param job_name: str, The name of the job
+    :param ceph_mount_path: str, Path on the Ceph cluster to mount
+    :param special_pvs: list[str], List of special PV identifiers (e.g. 'imat', 'gem')
+    :return: VolumeBundle, The assembled volume bundle
+    """
+    return build_job_volumes(
+        job_name=job_name,
+        job_namespace=JOB_NAMESPACE,
+        dev_mode=DEV_MODE,
+        manila_share_id=MANILA_SHARE_ID,
+        manila_share_access_id=MANILA_SHARE_ACCESS_ID,
+        special_pvs=special_pvs,
+        ceph_creds_k8s_secret_name=CEPH_CREDS_SECRET_NAME,
+        ceph_creds_k8s_namespace=CEPH_CREDS_SECRET_NAMESPACE,
+        cluster_id=CLUSTER_ID,
+        fs_name=FS_NAME,
+        ceph_mount_path=ceph_mount_path,
+    )
 
 
 def _generate_special_pvs(instrument: str) -> list[str]:
@@ -149,23 +173,22 @@ def process_simple_message(message: dict[str, Any]) -> None:
             {"user_number": str(user_number)} if user_number else {"experiment_number": str(experiment_number)}
         )
         ceph_mount_path = create_ceph_mount_path_simple(**ceph_mount_path_kwargs)
+        storage_bundle = _build_job_storage(
+            job_name=job_name,
+            ceph_mount_path=str(ceph_mount_path),
+            special_pvs=[],
+        )
         JOB_CREATOR.spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
-            ceph_creds_k8s_secret_name=CEPH_CREDS_SECRET_NAME,
-            ceph_creds_k8s_namespace=CEPH_CREDS_SECRET_NAMESPACE,
-            cluster_id=CLUSTER_ID,
-            fs_name=FS_NAME,
-            ceph_mount_path=str(ceph_mount_path),
             job_id=job_id,
             fia_api_host=FIA_API_HOST,
             fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
             runner_image=runner_image,
-            manila_share_id=MANILA_SHARE_ID,
-            manila_share_access_id=MANILA_SHARE_ACCESS_ID,
-            special_pvs=[],
+            storage_bundle=storage_bundle,
+            gpu_job=False,
             taints=taints,
             affinity=affinity,
         )
@@ -193,23 +216,22 @@ def process_rerun_message(message: dict[str, Any]) -> None:
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
+        storage_bundle = _build_job_storage(
+            job_name=job_name,
+            ceph_mount_path=str(ceph_mount_path),
+            special_pvs=special_pvs,
+        )
         JOB_CREATOR.spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
-            ceph_creds_k8s_secret_name=CEPH_CREDS_SECRET_NAME,
-            ceph_creds_k8s_namespace=CEPH_CREDS_SECRET_NAMESPACE,
-            cluster_id=CLUSTER_ID,
-            fs_name=FS_NAME,
-            ceph_mount_path=str(ceph_mount_path),
             job_id=message["job_id"],
             fia_api_host=FIA_API_HOST,
             fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
             runner_image=runner_image,
-            manila_share_id=MANILA_SHARE_ID,
-            manila_share_access_id=MANILA_SHARE_ACCESS_ID,
-            special_pvs=special_pvs,
+            storage_bundle=storage_bundle,
+            gpu_job="imat" in special_pvs,
             taints=taints,
             affinity=affinity,
         )
@@ -256,23 +278,22 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             autoreduction_request=autoreduction_request,
         )
         ceph_mount_path = create_ceph_mount_path_autoreduction(instrument_name, rb_number)
+        storage_bundle = _build_job_storage(
+            job_name=job_name,
+            ceph_mount_path=str(ceph_mount_path),
+            special_pvs=special_pvs,
+        )
         JOB_CREATOR.spawn_job(
             job_name=job_name,
             script=script,
             job_namespace=JOB_NAMESPACE,
-            ceph_creds_k8s_secret_name=CEPH_CREDS_SECRET_NAME,
-            ceph_creds_k8s_namespace=CEPH_CREDS_SECRET_NAMESPACE,
-            cluster_id=CLUSTER_ID,
-            fs_name=FS_NAME,
-            ceph_mount_path=str(ceph_mount_path),
             job_id=job_id,
             fia_api_host=FIA_API_HOST,
             fia_api_api_key=FIA_API_API_KEY,
             max_time_to_complete_job=MAX_TIME_TO_COMPLETE,
             runner_image=runner_image,
-            manila_share_id=MANILA_SHARE_ID,
-            manila_share_access_id=MANILA_SHARE_ACCESS_ID,
-            special_pvs=special_pvs,
+            storage_bundle=storage_bundle,
+            gpu_job="imat" in special_pvs,
             taints=taints,
             affinity=affinity,
         )
