@@ -795,7 +795,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         fs_name,
         ceph_mount_path,
     )
-    assert setup_manila_pv.call_count == 2 # noqa: PLR2004
+    assert setup_manila_pv.call_count == 2  # noqa: PLR2004
     setup_manila_pv.assert_called_with(
         pv_name=f"{job_name}-ndxgem-pv",
         read_only=False,
