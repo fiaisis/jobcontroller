@@ -818,6 +818,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     setup_manila_pv.assert_has_calls(
        manila_call_1, manila_call_2
     )
+    setup_manila_pv.assert_has_calls(manila_call_1, manila_call_2)
 
 
 @mock.patch("jobcreator.job_creator._setup_manila_pv")
