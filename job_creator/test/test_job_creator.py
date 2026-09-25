@@ -130,7 +130,12 @@ def test_setup_manila_pv_gem(client):
     manila_share_id = mock.MagicMock()
     manila_share_access_id = mock.MagicMock()
 
-    assert _setup_manila_pv(pv_name, False, secret_namespace, manila_share_id, manila_share_access_id, access_mode="ReadWriteOnce") == pv_name
+    assert (
+        _setup_manila_pv(
+            pv_name, False, secret_namespace, manila_share_id, manila_share_access_id, access_mode="ReadWriteOnce"
+        )
+        == pv_name
+    )
 
     client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
         client.V1PersistentVolume.return_value,
