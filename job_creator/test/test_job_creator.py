@@ -417,8 +417,8 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
-    setup_smb_pv,
     setup_pvc,
+    setup_smb_pv,
     setup_manila_pv,
 ):
     job_name = mock.MagicMock()
@@ -610,6 +610,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
 
 
 @mock.patch("jobcreator.job_creator._setup_manila_pv")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
@@ -619,6 +620,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     _,  # noqa: PT019
     setup_ceph_pv,
     setup_pvc,
+    setup_smb_pv,
     setup_manila_pv,
 ):
     job_name = mock.MagicMock()
