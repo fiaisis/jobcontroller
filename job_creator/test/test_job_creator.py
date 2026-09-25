@@ -223,7 +223,6 @@ def test_jobcreator_init(mock_load_kubernetes_config):
 
 
 @mock.patch("jobcreator.job_creator._setup_manila_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -235,7 +234,6 @@ def test_jobcreator_spawn_job_dev_mode_true(
     setup_ceph_pv,
     setup_pvc,
     setup_smb_pv,
-    setup_extras_pvc,
     setup_manila_pv,
 ):
     job_name = mock.MagicMock()
@@ -405,7 +403,6 @@ def test_jobcreator_spawn_job_dev_mode_true(
 
 
 @mock.patch("jobcreator.job_creator._setup_manila_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -417,7 +414,6 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     setup_ceph_pv,
     setup_smb_pv,
     setup_pvc,
-    setup_extras_pvc,
     setup_manila_pv,
 ):
     job_name = mock.MagicMock()
@@ -609,7 +605,6 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
 
 
 @mock.patch("jobcreator.job_creator._setup_manila_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
 @mock.patch("jobcreator.job_creator.load_kubernetes_config")
@@ -619,7 +614,6 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     _,  # noqa: PT019
     setup_ceph_pv,
     setup_pvc,
-    setup_extras_pvc,
     setup_manila_pv,
 ):
     job_name = mock.MagicMock()
@@ -812,7 +806,6 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
 
 
 @mock.patch("jobcreator.job_creator._setup_manila_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -824,7 +817,6 @@ def test_jobcreator_spawn_job_dev_mode_false(
     setup_ceph_pv,
     setup_smb_pv,
     setup_pvc,
-    setup_extras_pvc,
     setup_manila_pv,
 ):
     job_name = mock.MagicMock()
