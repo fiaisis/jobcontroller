@@ -5,8 +5,7 @@ from unittest.mock import call
 from jobcreator.job_creator import (
     JobCreator,
     _setup_ceph_pv,
-    _setup_extras_pv,
-    _setup_extras_pvc,
+    _setup_manila_pv,
     _setup_pvc,
     _setup_smb_pv,
 )
@@ -63,14 +62,13 @@ def test_setup_pvc(client):
     pvc_name = mock.MagicMock()
     pv_name = mock.MagicMock()
     namespace = mock.MagicMock()
-    access_mode = mock.MagicMock()
 
-    _setup_pvc(pvc_name, pv_name, namespace, access_mode)
+    _setup_pvc(pvc_name, pv_name, namespace)
 
     client.V1ObjectMeta.assert_called_once_with(name=pvc_name)
     client.V1ResourceRequirements.assert_called_once_with(requests={"storage": "1000Gi"})
     client.V1PersistentVolumeClaimSpec.assert_called_once_with(
-        access_modes=[access_mode],
+        access_modes=["ReadOnlyMany"],
         resources=client.V1ResourceRequirements.return_value,
         volume_name=pv_name,
         storage_class_name="",
@@ -87,47 +85,15 @@ def test_setup_pvc(client):
 
 
 @mock.patch("jobcreator.job_creator.client")
-def test_setup_extras_pvc(client):
-    job_name = str(mock.MagicMock())
-    job_namespace = str(mock.MagicMock())
-    pvc_name = f"{job_name}-extras-pvc"
-    pv_name = mock.MagicMock()
-
-    assert _setup_extras_pvc(job_name, job_namespace, pv_name) == pvc_name
-
-    client.V1ObjectMeta.assert_called_once_with(name=pvc_name)
-    client.V1ResourceRequirements(requests={"storage": "1000Gi"})
-    client.V1LabelSelectorRequirement.assert_called_once_with(key="name", operator="In", values=[pv_name])
-    client.V1LabelSelector.assert_called_once_with(
-        match_expressions=[client.V1LabelSelectorRequirement.return_value],
-    )
-    client.V1PersistentVolumeClaimSpec.assert_called_once_with(
-        access_modes=["ReadOnlyMany"],
-        resources=client.V1ResourceRequirements.return_value,
-        selector=client.V1LabelSelector.return_value,
-        storage_class_name="",
-    )
-    client.V1PersistentVolumeClaim.assert_called_once_with(
-        api_version="v1",
-        kind="PersistentVolumeClaim",
-        metadata=client.V1ObjectMeta.return_value,
-        spec=client.V1PersistentVolumeClaimSpec.return_value,
-    )
-    client.CoreV1Api.return_value.create_namespaced_persistent_volume_claim.assert_called_once_with(
-        namespace=job_namespace,
-        body=client.V1PersistentVolumeClaim.return_value,
-    )
-
-
-@mock.patch("jobcreator.job_creator.client")
-def test_setup_extras_pv(client):
+def test_setup_manila_pv_extras(client):
     job_name = str(mock.MagicMock())
     pv_name = f"{job_name}-extras-pv"
     secret_namespace = mock.MagicMock()
     manila_share_id = mock.MagicMock()
     manila_share_access_id = mock.MagicMock()
+    read_only = True
 
-    assert _setup_extras_pv(job_name, secret_namespace, manila_share_id, manila_share_access_id) == pv_name
+    assert _setup_manila_pv(pv_name, read_only, secret_namespace, manila_share_id, manila_share_access_id) == pv_name
 
     client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
         client.V1PersistentVolume.return_value,
@@ -147,6 +113,48 @@ def test_setup_extras_pv(client):
     client.V1CSIPersistentVolumeSource.assert_called_once_with(
         driver="cephfs.manila.csi.openstack.org",
         read_only=True,
+        volume_handle=pv_name,
+        volume_attributes={"shareID": manila_share_id, "shareAccessID": manila_share_access_id},
+        node_stage_secret_ref=client.V1SecretReference.return_value,
+        node_publish_secret_ref=client.V1SecretReference.return_value,
+    )
+    client.V1SecretReference.assert_called_once_with(name="manila-creds", namespace=secret_namespace)
+
+
+@mock.patch("jobcreator.job_creator.client")
+def test_setup_manila_pv_gem(client):
+
+    job_name = str(mock.MagicMock())
+    pv_name = f"{job_name}-ndxgem-pv"
+    secret_namespace = mock.MagicMock()
+    manila_share_id = mock.MagicMock()
+    manila_share_access_id = mock.MagicMock()
+
+    assert (
+        _setup_manila_pv(
+            pv_name, False, secret_namespace, manila_share_id, manila_share_access_id, access_mode="ReadWriteOnce"
+        )
+        == pv_name
+    )
+
+    client.CoreV1Api.return_value.create_persistent_volume.assert_called_once_with(
+        client.V1PersistentVolume.return_value,
+    )
+    client.V1PersistentVolume.assert_called_once_with(
+        api_version="v1",
+        kind="PersistentVolume",
+        metadata=client.V1ObjectMeta.return_value,
+        spec=client.V1PersistentVolumeSpec.return_value,
+    )
+    client.V1ObjectMeta.assert_called_once_with(name=pv_name, labels={"name": pv_name})
+    client.V1PersistentVolumeSpec.assert_called_once_with(
+        capacity={"storage": "1000Gi"},
+        access_modes=["ReadWriteOnce"],
+        csi=client.V1CSIPersistentVolumeSource.return_value,
+    )
+    client.V1CSIPersistentVolumeSource.assert_called_once_with(
+        driver="cephfs.manila.csi.openstack.org",
+        read_only=False,
         volume_handle=pv_name,
         volume_attributes={"shareID": manila_share_id, "shareAccessID": manila_share_access_id},
         node_stage_secret_ref=client.V1SecretReference.return_value,
@@ -219,8 +227,7 @@ def test_jobcreator_init(mock_load_kubernetes_config):
     mock_load_kubernetes_config.assert_called_once()
 
 
-@mock.patch("jobcreator.job_creator._setup_extras_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_manila_pv")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -232,8 +239,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
     setup_ceph_pv,
     setup_pvc,
     setup_smb_pv,
-    setup_extras_pvc,
-    setup_extras_pv,
+    setup_manila_pv,
 ):
     job_name = mock.MagicMock()
     script = mock.MagicMock()
@@ -401,8 +407,7 @@ def test_jobcreator_spawn_job_dev_mode_true(
     assert setup_pvc.call_count == 3  # noqa: PLR2004
 
 
-@mock.patch("jobcreator.job_creator._setup_extras_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_manila_pv")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -412,10 +417,9 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
-    setup_smb_pv,
     setup_pvc,
-    setup_extras_pvc,
-    setup_extras_pv,
+    setup_smb_pv,
+    setup_manila_pv,
 ):
     job_name = mock.MagicMock()
     script = mock.MagicMock()
@@ -605,8 +609,7 @@ def test_jobcreator_spawn_job_dev_mode_true_imat(
     )
 
 
-@mock.patch("jobcreator.job_creator._setup_extras_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_manila_pv")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -616,10 +619,9 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
     client,
     _,  # noqa: PT019
     setup_ceph_pv,
-    setup_smb_pv,
     setup_pvc,
-    setup_extras_pvc,
-    setup_extras_pv,
+    setup_smb_pv,
+    setup_manila_pv,
 ):
     job_name = mock.MagicMock()
     script = mock.MagicMock()
@@ -800,10 +802,27 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         fs_name,
         ceph_mount_path,
     )
+    assert setup_manila_pv.call_count == 2  # noqa: PLR2004
+    manila_call_1 = call(
+        pv_name=f"{job_name}-extras-pv",
+        read_only=True,
+        secret_namespace=job_namespace,
+        manila_share_id=manila_share_id,
+        manila_share_access_id=manila_share_access_id,
+    )
+    manila_call_2 = call(
+        pv_name=f"{job_name}-ndxgem-pv",
+        read_only=False,
+        secret_namespace=job_namespace,
+        manila_share_id=manila_share_id,
+        manila_share_access_id=manila_share_access_id,
+        access_mode="ReadWriteOnce",
+    )
+    calls = [manila_call_1, manila_call_2]
+    setup_manila_pv.assert_has_calls(calls, any_order=True)
 
 
-@mock.patch("jobcreator.job_creator._setup_extras_pv")
-@mock.patch("jobcreator.job_creator._setup_extras_pvc")
+@mock.patch("jobcreator.job_creator._setup_manila_pv")
 @mock.patch("jobcreator.job_creator._setup_smb_pv")
 @mock.patch("jobcreator.job_creator._setup_pvc")
 @mock.patch("jobcreator.job_creator._setup_ceph_pv")
@@ -815,8 +834,7 @@ def test_jobcreator_spawn_job_dev_mode_false(
     setup_ceph_pv,
     setup_smb_pv,
     setup_pvc,
-    setup_extras_pvc,
-    setup_extras_pv,
+    setup_manila_pv,
 ):
     job_name = mock.MagicMock()
     script = mock.MagicMock()
