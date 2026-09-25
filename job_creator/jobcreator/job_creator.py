@@ -6,182 +6,24 @@ from typing import Any
 
 from kubernetes import client  # type: ignore[import-untyped]
 
+from jobcreator.storage import (
+    VolumeBundle,
+    _setup_ceph_pv,
+    _setup_extras_pv,
+    _setup_extras_pvc,
+    _setup_gem_pv_and_pvcs,
+    _setup_imat_pv_and_pvcs,
+    _setup_pvc,
+    _setup_smb_pv,
+    build_job_volumes,
+)
 from jobcreator.utils import load_kubernetes_config, logger
 
 
-def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source: str, mount_options: list[str]) -> None:
-    """
-    Sets up an smb PV using the loaded kubeconfig as a destination
-    :param pv_name: str, The name given to the smb-pv when it's made
-    :param secret_name: str, The name of the secret that contains the credentials for the smb share
-    :param secret_namespace: str, the namespace of the secret
-    :param source: str, The IP/url/uri that is used to mount the smb share
-    :param mount_options: list, The mount options for the smb share
-    :return: str, the name of the archive PV
-    """
-    metadata = client.V1ObjectMeta(name=pv_name, annotations={"pv.kubernetes.io/provisioned-by": "smb.csi.k8s.io"})
-    secret_ref = client.V1SecretReference(name=secret_name, namespace=secret_namespace)
-    csi = client.V1CSIPersistentVolumeSource(
-        driver="smb.csi.k8s.io",
-        read_only=True,
-        volume_handle=pv_name,
-        volume_attributes={"source": source},
-        node_stage_secret_ref=secret_ref,
-    )
-    spec = client.V1PersistentVolumeSpec(
-        capacity={"storage": "1000Gi"},
-        access_modes=["ReadOnlyMany"],
-        persistent_volume_reclaim_policy="Retain",
-        mount_options=mount_options,
-        csi=csi,
-    )
-    archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
-    client.CoreV1Api().create_persistent_volume(archive_pv)
-
-
-def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "ReadOnlyMany") -> None:
-    """
-    Set up a PVC for the given pvc_name and pv_name in the given namespace
-    :param pvc_name: str, The name of the pvc to make
-    :param pv_name: str, The name of the pv to be claimed
-    :param namespace: str, The namespace to create the pvc in
-    """
-    metadata = client.V1ObjectMeta(name=pvc_name)
-    resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
-    spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=[access_mode],
-        resources=resources,
-        volume_name=pv_name,
-        storage_class_name="",
-    )
-    archive_pvc = client.V1PersistentVolumeClaim(
-        api_version="v1",
-        kind="PersistentVolumeClaim",
-        metadata=metadata,
-        spec=spec,
-    )
-    client.CoreV1Api().create_namespaced_persistent_volume_claim(namespace=namespace, body=archive_pvc)
-
-
-def _setup_extras_pvc(job_name: str, job_namespace: str, pv_name: str) -> str:
-    """
-    Sets up the extras Manila PVC using the loaded kubeconfig as a destination
-    :param job_name: str, the name of the job that the PVC is made for
-    :param job_namespace: str, the namespace that the job is in
-    :param pv_name: str, the name of the PV the PVC is being made for
-    :return: str, the name of the PVC
-    """
-    pvc_name = f"{job_name}-extras-pvc"
-    metadata = client.V1ObjectMeta(name=pvc_name)
-    resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
-    match_expression = client.V1LabelSelectorRequirement(key="name", operator="In", values=[pv_name])
-    selector = client.V1LabelSelector(match_expressions=[match_expression])
-    spec = client.V1PersistentVolumeClaimSpec(
-        access_modes=["ReadOnlyMany"],
-        resources=resources,
-        selector=selector,
-        storage_class_name="",
-    )
-    extras_pvc = client.V1PersistentVolumeClaim(
-        api_version="v1",
-        kind="PersistentVolumeClaim",
-        metadata=metadata,
-        spec=spec,
-    )
-    client.CoreV1Api().create_namespaced_persistent_volume_claim(namespace=job_namespace, body=extras_pvc)
-    return pvc_name
-
-
-def _setup_extras_pv(job_name: str, secret_namespace: str, manila_share_id: str, manila_share_access_id: str) -> str:
-    """
-    Setups up the extras PV using the loaded kubeconfig as destination
-    :param job_name: str, the name of the job the PV is for
-    :param manila_share_id: The id of the manila share to mount for extras
-    :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
-    manila share
-    :param secret_namespace: the namespace where the manila-creds secret is.
-    :return: str, the name of the PV
-    """
-    pv_name = f"{job_name}-extras-pv"
-    metadata = client.V1ObjectMeta(name=pv_name, labels={"name": pv_name})
-    secret_ref = client.V1SecretReference(name="manila-creds", namespace=secret_namespace)
-    csi = client.V1CSIPersistentVolumeSource(
-        driver="cephfs.manila.csi.openstack.org",
-        read_only=True,
-        volume_handle=pv_name,
-        volume_attributes={"shareID": manila_share_id, "shareAccessID": manila_share_access_id},
-        node_stage_secret_ref=secret_ref,
-        node_publish_secret_ref=secret_ref,
-    )
-    spec = client.V1PersistentVolumeSpec(
-        capacity={"storage": "1000Gi"},
-        access_modes=["ReadOnlyMany"],
-        csi=csi,
-    )
-    archive_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
-    client.CoreV1Api().create_persistent_volume(archive_pv)
-    return pv_name
-
-
-def _setup_ceph_pv(
-    pv_name: str,
-    ceph_creds_k8s_secret_name: str,
-    ceph_creds_k8s_namespace: str,
-    cluster_id: str,
-    fs_name: str,
-    ceph_mount_path: str,
-) -> str:
-    """
-    Sets up the ceph deneb PV using the loaded kubeconfig as a destination
-    :param pv_name: str, the name of the PV
-    :return: str, the name of the ceph deneb PV
-    """
-    metadata = client.V1ObjectMeta(name=pv_name)
-    secret_ref = client.V1SecretReference(name=ceph_creds_k8s_secret_name, namespace=ceph_creds_k8s_namespace)
-    csi = client.V1CSIPersistentVolumeSource(
-        driver="cephfs.csi.ceph.com",
-        node_stage_secret_ref=secret_ref,
-        volume_handle=pv_name,
-        volume_attributes={
-            "clusterID": cluster_id,
-            "mounter": "fuse",
-            "fsName": fs_name,
-            "staticVolume": "true",
-            "rootPath": ceph_mount_path,
-        },
-    )
-    spec = client.V1PersistentVolumeSpec(
-        capacity={"storage": "1000Gi"},
-        storage_class_name="",
-        access_modes=["ReadWriteMany"],
-        persistent_volume_reclaim_policy="Retain",
-        volume_mode="Filesystem",
-        csi=csi,
-    )
-    ceph_pv = client.V1PersistentVolume(api_version="v1", kind="PersistentVolume", metadata=metadata, spec=spec)
-    client.CoreV1Api().create_persistent_volume(ceph_pv)
-    return pv_name
-
-
-def _setup_imat_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
-    imat_pv_name = f"{job_name}-ndximat-pv-smb"
-    imat_pvc_name = f"{job_name}-ndximat-pvc"
-    _setup_smb_pv(imat_pv_name, "imat-creds", namespace, "//NDXIMAT.isis.cclrc.ac.uk/data$/", [])
-    _setup_pvc(imat_pvc_name, imat_pv_name, namespace)
-    pv_names.append(imat_pv_name)
-    pvc_names.append(imat_pvc_name)
-
-
-def _setup_gem_pv_and_pvcs(job_name: str, job_namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
-    gem_pv_name = f"{job_name}-ndxgem-pv"
-    gem_pvc_name = f"{job_name}-ndxgem-pvc"
-    _setup_pvc(gem_pvc_name, gem_pv_name, job_namespace)
-    pv_names.append(gem_pv_name)
-    pvc_names.append(gem_pvc_name)
-
-
-def _generate_tolerations_from_taints(taints: list[dict[str, Any]]) -> list[client.V1Toleration]:
+def _generate_tolerations_from_taints(taints: list[dict[str, Any]] | None = None) -> list[client.V1Toleration]:
     tolerations = []
+    if not taints:
+        return tolerations
     for taint in taints:
         toleration = client.V1Toleration(
             value=taint.get("value", None),
@@ -255,182 +97,85 @@ class JobCreator:
         self.watcher_sha = watcher_sha
         self.dev_mode = dev_mode
 
-    def spawn_job(  # noqa: PLR0913, PLR0917
+    def spawn_job(  # noqa: PLR0913
         self,
         job_name: str,
         script: str,
         job_namespace: str,
-        ceph_creds_k8s_secret_name: str,
-        ceph_creds_k8s_namespace: str,
-        cluster_id: str,
-        fs_name: str,
-        ceph_mount_path: str,
-        job_id: int,
-        max_time_to_complete_job: int,
-        fia_api_host: str,
-        fia_api_api_key: str,
-        runner_image: str,
-        manila_share_id: str,
-        manila_share_access_id: str,
-        special_pvs: list[str],
-        taints: list[dict[str, Any]],
-        affinity: dict[str, Any] | None,
+        ceph_creds_k8s_secret_name: str = "",
+        ceph_creds_k8s_namespace: str = "",
+        cluster_id: str = "",
+        fs_name: str = "",
+        ceph_mount_path: str = "",
+        job_id: int = 0,
+        max_time_to_complete_job: int = 0,
+        fia_api_host: str = "",
+        fia_api_api_key: str = "",
+        runner_image: str = "",
+        manila_share_id: str = "",
+        manila_share_access_id: str = "",
+        special_pvs: list[str] | None = None,
+        taints: list[dict[str, Any]] | None = None,
+        affinity: dict[str, Any] | None = None,
+        storage_bundle: VolumeBundle | None = None,
+        gpu_job: bool | None = None,
     ) -> None:
         """
         Takes the meta_data from the message and uses that dictionary for generating the deployment of the pod.
-        :param job_name: The name that the job should be created as
-        :param script: The script that should be executed
-        :param job_namespace: The namespace that the job should be created in
-        :param ceph_creds_k8s_secret_name: The secret name of the ceph credentials
-        :param ceph_creds_k8s_namespace: The secret namespace of the ceph credentials
-        :param cluster_id: The cluster id for the ceph cluster to connect to
-        :param fs_name: The file system name for the ceph cluster
-        :param ceph_mount_path: the path on the ceph cluster to mount
-        :param job_id: The id used in the DB for the reduction
-        :param max_time_to_complete_job: The maximum time to allow for completion of a job in seconds
-        :param fia_api_host: The fia api host for the fia cluster
-        :param fia_api_api_key: The fia api key
-        :param runner_image: the container image that has is to be used the containers have permission to use the
+        :param job_name: str, The name that the job should be created as
+        :param script: str, The script that should be executed
+        :param job_namespace: str, The namespace that the job should be created in
+        :param ceph_creds_k8s_secret_name: str, The secret name of the ceph credentials
+        :param ceph_creds_k8s_namespace: str, The secret namespace of the ceph credentials
+        :param cluster_id: str, The cluster id for the ceph cluster to connect to
+        :param fs_name: str, The file system name for the ceph cluster
+        :param ceph_mount_path: str, the path on the ceph cluster to mount
+        :param job_id: int, The id used in the DB for the reduction
+        :param max_time_to_complete_job: int, The maximum time to allow for completion of a job in seconds
+        :param fia_api_host: str, The fia api host for the fia cluster
+        :param fia_api_api_key: str, The fia api key
+        :param runner_image: str, the container image that has is to be used the containers have permission to use the
         directories required for outputting data.
-        :param manila_share_id: The id of the manila share to mount for extras
-        :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
+        :param manila_share_id: str, The id of the manila share to mount for extras
+        :param manila_share_access_id: str, the id of the access rule for the manila share that provides access to the
         manila share
-        :param special_pvs: A list of special PV strings, that represent PVs that can be implemented.
-        :param taints: A list of taints that the runner pods should have for example:
+        :param special_pvs: list[str] | None, A list of special PV strings, that represent PVs that can be implemented.
+        :param taints: list[dict[str, Any]] | None, A list of taints that the runner pods should have for example:
         [{"key": "gpu", "effect": "NoSchedule", "operator": "Exists"}]
-        :param affinity: A dict that describes the node affinity of the job for example:
+        :param affinity: dict[str, Any] | None, A dict that describes the node affinity of the job for example:
         {"key": "node-type", "operator": "In", "values": ["gpu-worker"]}
+        :param storage_bundle: VolumeBundle | None, Pre-assembled volume bundle; if omitted, built from
+        storage parameters
+        :param gpu_job: bool | None, Whether this is a GPU workload (defaults to checking special_pvs for 'imat')
         :return: None
         """
-        logger.info("Creating PV and PVC for: %s", job_name)
-
-        pv_names = []
-        pvc_names = []
-
-        # Setup Archive PV and PVC
-        archive_pv_name = f"{job_name}-archive-pv-smb"
-        _setup_smb_pv(
-            archive_pv_name,
-            "archive-creds",
-            job_namespace,
-            "//isisdatar55.isis.cclrc.ac.uk/inst$/",
-            ["noserverino", "_netdev", "vers=2.1"],
-        )
-        pv_names.append(archive_pv_name)
-
-        archive_pvc_name = f"{job_name}-archive-pvc"
-        _setup_pvc(archive_pvc_name, archive_pv_name, job_namespace)
-        pvc_names.append(archive_pvc_name)
-
-        # Setup Extras PV and PVC
-        extras_pv_name = _setup_extras_pv(
-            job_name=job_name,
-            secret_namespace=job_namespace,
-            manila_share_id=manila_share_id,
-            manila_share_access_id=manila_share_access_id,
-        )
-        pv_names.append(extras_pv_name)
-
-        extras_pvc_name = f"{job_name}-extras-pvc"
-        _setup_pvc(extras_pvc_name, extras_pv_name, job_namespace)
-        pvc_names.append(extras_pvc_name)
-
-        # Setup ceph PV and PVC
-        if not self.dev_mode:
-            ceph_pv_name = f"{job_name}-ceph-pv"
-            (
-                _setup_ceph_pv(
-                    ceph_pv_name,
-                    ceph_creds_k8s_secret_name,
-                    ceph_creds_k8s_namespace,
-                    cluster_id,
-                    fs_name,
-                    ceph_mount_path,
-                ),
-            )
-            pv_names.append(ceph_pv_name)
-
-            ceph_pvc_name = f"{job_name}-ceph-pvc"
-            _setup_pvc(ceph_pvc_name, ceph_pv_name, job_namespace, access_mode="ReadWriteMany")
-            pvc_names.append(ceph_pvc_name)
-
-            ceph_volume = client.V1Volume(
-                name="ceph-mount",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=ceph_pvc_name,
-                    read_only=False,
-                ),
-            )
-        else:
-            ceph_volume = client.V1Volume(
-                name="ceph-mount",
-                empty_dir=client.V1EmptyDirVolumeSource(size_limit="100Gi"),
+        if storage_bundle is None:
+            logger.info("Creating PV and PVC for: %s", job_name)
+            storage_bundle = build_job_volumes(
+                job_name=job_name,
+                job_namespace=job_namespace,
+                dev_mode=self.dev_mode,
+                manila_share_id=manila_share_id,
+                manila_share_access_id=manila_share_access_id,
+                special_pvs=special_pvs or [],
+                ceph_creds_k8s_secret_name=ceph_creds_k8s_secret_name,
+                ceph_creds_k8s_namespace=ceph_creds_k8s_namespace,
+                cluster_id=cluster_id,
+                fs_name=fs_name,
+                ceph_mount_path=ceph_mount_path,
             )
 
-        # Create the Job
+        if gpu_job is None:
+            gpu_job = special_pvs is not None and "imat" in special_pvs
+
         logger.info("Spawning job: %s", job_name)
-
-        volumes = [
-            client.V1Volume(
-                name="archive-mount",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=archive_pvc_name,
-                    read_only=True,
-                ),
-            ),
-            ceph_volume,
-            client.V1Volume(
-                name="extras-mount",
-                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=extras_pvc_name,
-                    read_only=True,
-                ),
-            ),
-        ]
-        volumes_mounts = [
-            client.V1VolumeMount(name="archive-mount", mount_path="/archive"),
-            client.V1VolumeMount(name="ceph-mount", mount_path="/output"),
-            client.V1VolumeMount(name="extras-mount", mount_path="/extras"),
-        ]
-        # Setup special PVs and add them to the volume mounts
-        if "imat" in special_pvs:
-            _setup_imat_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
-            imat_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
-                claim_name=f"{job_name}-ndximat-pvc", read_only=True
-            )
-            volumes.append(client.V1Volume(name="imat-mount", persistent_volume_claim=imat_pvc_source))
-            volumes_mounts.append(client.V1VolumeMount(name="imat-mount", mount_path="/imat"))
-            # Because imat is special and uses mantid imaging to load large .tiff files, we need to ensure the /dev/shm
-            # is larger than 64mb. We do however have a soft-ish limit of around 32GiB on the size of datasets when
-            # doing this.
-            volumes.append(
-                client.V1Volume(
-                    name="dev-shm", empty_dir=client.V1EmptyDirVolumeSource(size_limit="32Gi", medium="Memory")
-                )
-            )
-            volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
-
-        # Decide whether this is a GPU workload. IMAT jobs run mantid imaging on GPU nodes and need
-        # the NVIDIA runtime + a GPU resource request so the GPU Operator injects the matching
-        # userspace driver libraries (libcuda.so.*) into the container.
-        gpu_job = "imat" in special_pvs
-
-        # GEM requires a volume with write access, in order to perform some of the reduction algorithms,
-        # for which we need to generate and move/copy some calibration files
-        if "gem" in special_pvs:
-            _setup_gem_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
-            gem_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
-                claim_name=f"{job_name}-ndxgem-pvc", read_only=False
-            )
-            volumes.append(client.V1Volume(name="gem-mount", persistent_volume_claim=gem_pvc_source))
-            volumes_mounts.append(client.V1VolumeMount(name="gem-mount", mount_path="/gem", read_only=False))
 
         main_container = client.V1Container(
             name=job_name,
             image=runner_image,
             args=[script],
             env=[client.V1EnvVar(name="PYTHONUNBUFFERED", value="1")],
-            volume_mounts=volumes_mounts,
+            volume_mounts=storage_bundle.volume_mounts,
             resources=client.V1ResourceRequirements(
                 limits={"nvidia.com/gpu": "1"},
             )
@@ -460,7 +205,7 @@ class JobCreator:
             containers=[main_container, watcher_container],
             restart_policy="Never",
             tolerations=tolerations,
-            volumes=volumes,
+            volumes=storage_bundle.volumes,
             runtime_class_name="nvidia" if gpu_job else None,
         )
 
@@ -480,8 +225,8 @@ class JobCreator:
             name=job_name,
             annotations={
                 "job-id": str(job_id),
-                "pvs": str(pv_names),
-                "pvcs": str(pvc_names),
+                "pvs": str(storage_bundle.pv_names),
+                "pvcs": str(storage_bundle.pvc_names),
                 "kubectl.kubernetes.io/default-container": main_container.name,
             },
         )
