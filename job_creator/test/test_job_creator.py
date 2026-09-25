@@ -809,7 +809,6 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
-        access_mode="ReadOnlyMany",
     )
     manila_call_2 = call(
         pv_name=f"{job_name}-ndxgem-pv",
