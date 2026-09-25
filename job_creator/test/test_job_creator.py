@@ -803,13 +803,20 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         ceph_mount_path,
     )
     assert setup_manila_pv.call_count == 2  # noqa: PLR2004
-    setup_manila_pv.assert_called_with(
-        pv_name=f"{job_name}-ndxgem-pv",
-        read_only=False,
-        secret_namespace=job_namespace,
-        manila_share_id=manila_share_id,
-        manila_share_access_id=manila_share_access_id,
-        access_mode="ReadWriteOnce",
+    manila_call_1 = call(pv_name=f"{job_name}-extras-pv",
+            read_only=True,
+            secret_namespace=job_namespace,
+            manila_share_id=manila_share_id,
+            manila_share_access_id=manila_share_access_id,
+            access_mode="ReadOnlyMany")
+    manila_call_2 = call(pv_name=f"{job_name}-ndxgem-pv",
+            read_only=False,
+            secret_namespace=job_namespace,
+            manila_share_id=manila_share_id,
+            manila_share_access_id=manila_share_access_id,
+            access_mode="ReadWriteOnce")
+    setup_manila_pv.assert_has_calls(
+       manila_call_1, manila_call_2
     )
 
 
