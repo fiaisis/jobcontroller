@@ -879,8 +879,7 @@ def test_read_pod_logs_replaces_undecodable_bytes() -> None:
 def test_get_job_output_finds_last_json_line_among_other_log_lines() -> None:
     v1_core = mock.MagicMock()
     v1_core.read_namespaced_pod_log.return_value.data = (
-        b"creating mapping file...\nReduction completed.\n"
-        b'{"status": "Successful", "output_files": "GEM.nxs"}\n'
+        b'creating mapping file...\nReduction completed.\n{"status": "Successful", "output_files": "GEM.nxs"}\n'
     )
 
     result = get_job_output(v1_core, "pod", "ns", "container")
