@@ -12,12 +12,12 @@ from hypothesis import given, strategies
 
 from jobwatcher.job_watcher import (
     JobWatcher,
-    _find_json_blob,
     _find_latest_raised_error_and_stacktrace_from_reversed_logs,
     _find_pod_from_partial_name,
-    _normalize_logs,
+    _read_pod_logs,
     clean_up_pvcs_for_job,
     clean_up_pvs_for_job,
+    get_job_output,
 )
 
 JOB_NAME = mock.MagicMock()
@@ -373,10 +373,11 @@ def test_check_for_pod_stalled_pod_is_stalled_for_30_minutes(job_watcher_maker):
     jw.max_time_to_complete = 99999999
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
-        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = ""
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.data = b""
         assert jw.check_for_pod_stalled() is True
 
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
+        _preload_content=False,
         name=jw.pod.metadata.name,
         namespace=jw.pod.metadata.namespace,
         timestamps=True,
@@ -482,18 +483,21 @@ def test_process_job_success(job_watcher_maker):
     jw._update_job_status = mock.MagicMock()
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
-        logs = """
-        line 1
-        line 2
-        line 3
-
-        {"status": "Successful", "status_message": "status_message", "output_files": "output_file.nxs"}
-        """
-        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = logs
+        logs = (
+            b"\n"
+            b"        line 1\n"
+            b"        line 2\n"
+            b"        line 3\n"
+            b"\n"
+            b'        {"status": "Successful", "status_message": "status_message", '
+            b'"output_files": "output_file.nxs"}\n'
+            b"        "
+        )
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.data = logs
         jw.process_job_success()
 
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
-        name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
+        _preload_content=False, name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw._update_job_status.assert_called_once_with(
         job_id,
@@ -536,7 +540,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
 
-    def raise_error(name, namespace, container):
+    def raise_error(**_kwargs):
         raise JSONDecodeError("", "", 1)
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
@@ -544,7 +548,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
         jw.process_job_success()
 
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
-        name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
+        _preload_content=False, name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw._update_job_status.assert_called_once_with(
         job_id,
@@ -567,7 +571,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
 
-    def raise_error(name, namespace, container):
+    def raise_error(**_kwargs):
         raise TypeError("TypeError!")
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
@@ -575,7 +579,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
         jw.process_job_success()
 
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
-        name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
+        _preload_content=False, name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw._update_job_status.assert_called_once_with(
         job_id,
@@ -598,7 +602,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
 
-    def raise_error(name, namespace, container):
+    def raise_error(**_kwargs):
         raise Exception("Exception raised!")
 
     with mock.patch("jobwatcher.job_watcher.client") as client:
@@ -606,7 +610,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
         jw.process_job_success()
 
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
-        name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
+        _preload_content=False, name=jw.pod.metadata.name, namespace=jw.namespace, container=jw.container_name
     )
     jw._update_job_status.assert_called_once_with(
         job_id,
@@ -682,20 +686,17 @@ def test_find_latest_raised_error_and_stacktrace(job_watcher_maker):
         ) as return_raised_error_call,
         mock.patch("jobwatcher.job_watcher.client") as client,
     ):
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.data = b"line 1\nline 2\nline 3"
         jw._find_latest_raised_error_and_stacktrace()
 
     client.CoreV1Api.return_value.read_namespaced_pod_log.assert_called_once_with(
+        _preload_content=False,
         name=jw.pod.metadata.name,
         namespace=jw.pod.metadata.namespace,
         tail_lines=50,
         container=jw.container_name,
     )
-    (
-        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.split.return_value.reverse.assert_called_once_with()
-    )
-    return_raised_error_call.assert_called_once_with(
-        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.split.return_value
-    )
+    return_raised_error_call.assert_called_once_with(["line 3", "line 2", "line 1"])
 
 
 @pytest.mark.usefixtures("job_watcher_maker")
@@ -717,8 +718,8 @@ def test_handle_logs_output_only_1_line(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
     with mock.patch("jobwatcher.job_watcher.client") as client:
-        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = (
-            '{"status": "Successful", "output_files": "Great files, the best!"}'
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.data = (
+            b'{"status": "Successful", "output_files": "Great files, the best!"}'
         )
         jw.process_job_success()
 
@@ -743,9 +744,9 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
     with mock.patch("jobwatcher.job_watcher.client") as client:
-        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value = (
-            'Crazy python script logs here!\n{"status": "Successful", "output_files": "Great files, the best!"}\n'
-            "Not sure why K8s adds me here!, only sometimes!"
+        client.CoreV1Api.return_value.read_namespaced_pod_log.return_value.data = (
+            b'Crazy python script logs here!\n{"status": "Successful", "output_files": "Great files, the best!"}\n'
+            b"Not sure why K8s adds me here!, only sometimes!"
         )
         jw.process_job_success()
 
@@ -854,23 +855,76 @@ def test_update_job_status_retry_on_request_exception(n_exceptions: int) -> None
         mock_sleep.assert_has_calls([call(5)] * n_exceptions)
 
 
-def test_normalize_logs_bytes() -> None:
-    assert _normalize_logs(b"hello\nworld") == "hello\nworld"
+def test_read_pod_logs_decodes_raw_bytes_without_going_through_client_deserialize() -> None:
+    v1_core = mock.MagicMock()
+    v1_core.read_namespaced_pod_log.return_value.data = b"line 1\nline 2\n"
 
+    result = _read_pod_logs(v1_core, name="pod", namespace="ns", container="container")
 
-def test_normalize_logs_byte_repr_string() -> None:
-    byte_repr = "b'line 1\\nline 2\\n'"
-    assert _normalize_logs(byte_repr) == "line 1\nline 2\n"
-
-
-def test_normalize_logs_standard_string() -> None:
-    standard = "line 1\nline 2\n"
-    assert _normalize_logs(standard) == "line 1\nline 2\n"
-
-
-def test_find_json_blob_with_byte_repr() -> None:
-    raw_log = (
-        'b\'creating mapping file...\\nReduction completed.\\n{"status": "Successful", "output_files": "GEM.nxs"}\\n\''
+    assert result == "line 1\nline 2\n"
+    v1_core.read_namespaced_pod_log.assert_called_once_with(
+        _preload_content=False, name="pod", namespace="ns", container="container"
     )
-    res = _find_json_blob([raw_log])
-    assert res == '{"status": "Successful", "output_files": "GEM.nxs"}'
+
+
+def test_read_pod_logs_replaces_undecodable_bytes() -> None:
+    v1_core = mock.MagicMock()
+    v1_core.read_namespaced_pod_log.return_value.data = b"good line\n\xff\xfe bad bytes"
+
+    result = _read_pod_logs(v1_core, name="pod", namespace="ns", container="container")
+
+    assert result.startswith("good line\n")
+
+
+def test_get_job_output_finds_last_json_line_among_other_log_lines() -> None:
+    v1_core = mock.MagicMock()
+    v1_core.read_namespaced_pod_log.return_value.data = (
+        b'creating mapping file...\nReduction completed.\n{"status": "Successful", "output_files": "GEM.nxs"}\n'
+    )
+
+    result = get_job_output(v1_core, "pod", "ns", "container")
+
+    assert result == {"status": "Successful", "output_files": "GEM.nxs"}
+
+
+def test_get_job_output_raises_json_decode_error_when_no_json_present() -> None:
+    v1_core = mock.MagicMock()
+    v1_core.read_namespaced_pod_log.return_value.data = b"no json here\nnope\n"
+
+    with pytest.raises(JSONDecodeError):
+        get_job_output(v1_core, "pod", "ns", "container")
+
+
+def test_get_job_output_raises_json_decode_error_on_empty_logs() -> None:
+    v1_core = mock.MagicMock()
+    v1_core.read_namespaced_pod_log.return_value.data = b""
+
+    with pytest.raises(JSONDecodeError):
+        get_job_output(v1_core, "pod", "ns", "container")
+
+
+def test_get_job_output_bypasses_kubernetes_client_json_dict_corruption() -> None:
+    """
+    Regression test for a real production bug: kubernetes-client's ApiClient.deserialize()
+    unconditionally runs json.loads() on every response body regardless of the endpoint's
+    declared response type. read_namespaced_pod_log declares response type "str", but when a
+    job's last log line is itself valid JSON (as it is here), the buggy client parses it into a
+    dict and then stringifies that dict with str(), corrupting valid double-quoted JSON into an
+    invalid single-quoted Python dict repr, e.g.:
+        {'status': 'Successful', 'status_message': '', 'output_files': '/output', 'stacktrace': ''}
+    get_job_output must never depend on read_namespaced_pod_log's returned/deserialized value for
+    this reason -- it goes through _read_pod_logs, which reads the raw HTTPResponse bytes directly
+    (_preload_content=False) and therefore never sees this corruption.
+    """
+    v1_core = mock.MagicMock()
+    raw_json_log = b'{"status": "Successful", "status_message": "", "output_files": "/output", "stacktrace": ""}\n'
+    v1_core.read_namespaced_pod_log.return_value.data = raw_json_log
+
+    result = get_job_output(v1_core, "pod", "ns", "container")
+
+    assert result == {
+        "status": "Successful",
+        "status_message": "",
+        "output_files": "/output",
+        "stacktrace": "",
+    }

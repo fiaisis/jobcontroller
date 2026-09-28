@@ -2,8 +2,6 @@
 Watch a kubernetes job, and when it ends update the DB with the results, and exit.
 """
 
-import ast
-import codecs
 import datetime
 import json
 import os
@@ -25,40 +23,52 @@ FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
 
 
-def _normalize_logs(log_data: Any) -> Any:
+def _read_pod_logs(v1_core: client.CoreV1Api, **kwargs: Any) -> str:
     """
-    Normalise logs returned by the kubernetes client. In some environments or client
-    versions, read_namespaced_pod_log may return bytes or a string representation
-    of bytes (e.g. b'...' with escaped newlines).
+    Read a pod's logs, bypassing the kubernetes client's generic response deserialization.
+
+    kubernetes-client's ApiClient.deserialize() unconditionally attempts json.loads() on every
+    response body, regardless of the endpoint's declared response type. read_namespaced_pod_log's
+    response type is "str" (the raw log text), but the client mishandles it in two ways:
+      * If the log output happens to already be valid JSON (as it is for successful jobs here,
+        which print a JSON status blob as their last line), the client parses it into a dict and
+        then stringifies that dict with str(), silently corrupting double-quoted JSON into a
+        single-quoted Python dict repr that is no longer valid JSON.
+      * If the log output is not valid JSON, json.loads() raises, so the client falls back to
+        str(response.data) where response.data is still raw bytes, producing a Python bytes-repr
+        string (e.g. "b'...\\n...'") instead of the decoded text.
+    Using _preload_content=False returns the raw urllib3 HTTPResponse untouched, so we can decode
+    the exact bytes the server sent ourselves and avoid both corruption paths entirely.
+    :param v1_core: client.CoreV1Api, the core API client to read the pod log from
+    :param kwargs: kwargs forwarded to read_namespaced_pod_log (name, namespace, container, etc.)
+    :return: str, the raw pod log content, decoded as utf-8
     """
-    if isinstance(log_data, bytes):
-        return log_data.decode("utf-8", errors="replace")
-    if isinstance(log_data, str) and (
-        (log_data.startswith("b'") and log_data.endswith("'")) or (log_data.startswith('b"') and log_data.endswith('"'))
-    ):
-        with suppress(Exception):
-            evaluated = ast.literal_eval(log_data)
-            if isinstance(evaluated, bytes):
-                return evaluated.decode("utf-8", errors="replace")
-        stripped = log_data[2:-1]
-        with suppress(Exception):
-            return codecs.decode(stripped.encode("latin1"), "unicode_escape")
-        return stripped.replace("\\n", "\n").replace('\\"', '"').replace("\\'", "'")
-    return log_data
+    raw_response = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)
+    return cast("bytes", raw_response.data).decode("utf-8", errors="replace")
 
 
-def _find_json_blob(log_lines: list[str]) -> str | None:
-    if len(log_lines) == 1 and isinstance(log_lines[0], str):
-        normalized = _normalize_logs(log_lines[0])
-        if "\n" in normalized:
-            log_lines = normalized.split("\n")
+def get_job_output(v1_core: client.CoreV1Api, pod_name: str, namespace: str, container_name: str) -> dict[str, Any]:
+    """
+    Fetch a completed job's pod logs and parse out the JSON status blob it printed as its last line
+    of output, in one step: read the raw logs, then scan from the end of the logs for the last line
+    that parses as a JSON object.
+    :param v1_core: client.CoreV1Api, the core API client used to fetch the pod's logs
+    :param pod_name: str, the name of the pod to read logs from
+    :param namespace: str, the namespace the pod lives in
+    :param container_name: str, the name of the container to read logs from
+    :return: dict[str, Any], the parsed JSON status blob
+    :raises JSONDecodeError: if no line in the logs could be parsed as a JSON object
+    """
+    raw_logs = _read_pod_logs(v1_core, name=pod_name, namespace=namespace, container=container_name)
+    log_lines = raw_logs.split("\n")
     for line in reversed(log_lines):
-        try:
-            if "{" in line and json.loads(line):
-                return line
-        except JSONDecodeError:
-            pass
-    return None
+        if "{" not in line:
+            continue
+        with suppress(JSONDecodeError):
+            candidate = json.loads(line)
+            if isinstance(candidate, dict):
+                return candidate
+    raise JSONDecodeError("No JSON object could be found in the pod's logs", raw_logs, 0)
 
 
 def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
@@ -276,7 +286,8 @@ class JobWatcher:
         if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
             seconds=seconds_in_30_minutes
         ):
-            logs = v1_core.read_namespaced_pod_log(
+            logs = _read_pod_logs(
+                v1_core,
                 name=self.pod.metadata.name,
                 namespace=self.pod.metadata.namespace,
                 timestamps=True,
@@ -284,7 +295,6 @@ class JobWatcher:
                 since_seconds=seconds_in_30_minutes,
                 container=self.container_name,
             )
-            logs = _normalize_logs(logs)
             if logs == "":
                 logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_30_minutes)
                 return True
@@ -319,13 +329,14 @@ class JobWatcher:
         if self.pod is None:
             raise AttributeError("Pod must be set in the JobWatcher before calling this function.")
         v1_core = client.CoreV1Api()
-        raw_logs = v1_core.read_namespaced_pod_log(
+        raw_logs = _read_pod_logs(
+            v1_core,
             name=self.pod.metadata.name,
             namespace=self.pod.metadata.namespace,
             tail_lines=50,
             container=self.container_name,
         )
-        logs = _normalize_logs(raw_logs).split("\n")
+        logs = raw_logs.split("\n")
         logs.reverse()
         return _find_latest_raised_error_and_stacktrace_from_reversed_logs(logs)
 
@@ -388,18 +399,10 @@ class JobWatcher:
                 f"namespace returned None when looking for a pod."
             )
         v1_core = client.CoreV1Api()
-        # Convert message from JSON string to python dict
+        # Fetch the pod's logs and parse out the JSON status blob it printed as its last line
         try:
-            logs = v1_core.read_namespaced_pod_log(
-                name=self.pod.metadata.name, namespace=self.namespace, container=self.container_name
-            )
-            logs = _normalize_logs(logs)
-            log_lines = logs.split("\n")
-            output = _find_json_blob(log_lines)
-            if output is None:
-                raise JSONDecodeError("Output was None, it cannot be None", "", 0)
-            logger.info("Job %s has been completed with output: %s", job_name, output)
-            job_output = json.loads(output)
+            job_output = get_job_output(v1_core, self.pod.metadata.name, self.namespace, self.container_name)
+            logger.info("Job %s has been completed with output: %s", job_name, job_output)
         except JSONDecodeError as exception:
             logger.error("Last messages in job does not contain a JSON string or it could not be found.")
             logger.exception(exception)
