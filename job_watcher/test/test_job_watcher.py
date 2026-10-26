@@ -478,7 +478,7 @@ def test_process_job_success(job_watcher_maker):
     start = mock.MagicMock()
     end = mock.MagicMock()
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
-    job_id = mock.MagicMock()
+    job_id = 1234
     jw.job.metadata.annotations.get.return_value = job_id
     jw._update_job_status = mock.MagicMock()
 
@@ -535,7 +535,7 @@ def test_process_job_success_raise_json_decode_error(job_watcher_maker):
     jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
-    job_id = mock.MagicMock()
+    job_id = 1234
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
@@ -566,7 +566,7 @@ def test_process_job_success_raise_type_error(job_watcher_maker):
     jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
-    job_id = mock.MagicMock()
+    job_id = 1234
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
@@ -597,7 +597,7 @@ def test_process_job_success_raise_exception(job_watcher_maker):
     jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
-    job_id = mock.MagicMock()
+    job_id = 1234
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
@@ -713,7 +713,7 @@ def test_handle_logs_output_only_1_line(job_watcher_maker):
     jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
-    job_id = mock.MagicMock()
+    job_id = 1234
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
@@ -739,7 +739,7 @@ def test_handle_logs_output_2_lines(job_watcher_maker):
     jw, _, _find_pod_from_partial_name = job_watcher_maker
     start = mock.MagicMock()
     end = mock.MagicMock()
-    job_id = mock.MagicMock()
+    job_id = 1234
     jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
