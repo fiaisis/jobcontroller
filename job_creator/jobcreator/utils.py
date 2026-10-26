@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 import requests
-from kubernetes import config  # type: ignore[import-untyped]
-from kubernetes.config import ConfigException  # type: ignore[import-untyped]
+from kubernetes import config
+from kubernetes.config import ConfigException
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
@@ -46,17 +46,17 @@ def load_kubernetes_config() -> None:
     """
     Load the kubernetes config for the kubernetes library, attempt incluster first, then try the KUBECONFIG variable,
     then finally try the default kube config locations
-    :return:
+    :return: None
     """
     try:
-        config.load_incluster_config()
+        config.load_incluster_config() # type: ignore
     except ConfigException:
         # Load config that is set as KUBECONFIG in the OS or in the default location
         kubeconfig_path = os.getenv("KUBECONFIG", None)
         if kubeconfig_path:
-            config.load_kube_config(config_file=kubeconfig_path)
+            config.load_kube_config(config_file=kubeconfig_path) # type: ignore
         else:
-            config.load_kube_config()
+            config.load_kube_config() # type: ignore
 
 
 def create_ceph_mount_path_simple(
