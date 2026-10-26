@@ -13,8 +13,8 @@ from time import sleep
 from typing import Any, Literal, cast
 
 import requests
-from kubernetes import client  # type: ignore[import-untyped]
-from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
+from kubernetes import client
+from kubernetes.client import V1ContainerStatus, V1Job, V1Pod
 
 from jobwatcher.utils import logger
 

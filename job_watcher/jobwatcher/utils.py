@@ -6,8 +6,8 @@ import logging
 import os
 import sys
 
-from kubernetes import config  # type: ignore[import-untyped]
-from kubernetes.config import ConfigException  # type: ignore[import-untyped]
+from kubernetes import config
+from kubernetes.config import ConfigException
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
