@@ -437,12 +437,14 @@ def test_process_job_failed(job_watcher_maker):
     jw._find_latest_raised_error_and_stacktrace = mock.MagicMock(return_value=[status_message, stacktrace])
     start = mock.MagicMock()
     end = mock.MagicMock()
+    job_id = 1234
+    jw.job.metadata.annotations.get.return_value = job_id
     jw._find_start_and_end_of_pod = mock.MagicMock(return_value=(start, end))
     jw._update_job_status = mock.MagicMock()
     jw.process_job_failed()
 
     jw._update_job_status.assert_called_once_with(
-        jw.job.metadata.annotations["job-id"],
+        job_id,
         "ERROR",
         status_message,
         [],
