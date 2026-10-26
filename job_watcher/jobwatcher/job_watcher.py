@@ -249,7 +249,7 @@ class JobWatcher:
         :return: Optional[V1ContainerStatus], The job's main container status
         """
         # Find container
-        if self.pod is not None and self.pod.status is not None:
+        if self.pod is not None and self.pod.status is not None and self.pod.status.container_statuses is not None:
             for container_status in self.pod.status.container_statuses:
                 if container_status.name == self.container_name:
                     return container_status
@@ -264,7 +264,7 @@ class JobWatcher:
         container_status = self.get_container_status()
         if container_status is None:
             raise ValueError(f"Container not found: {self.container_name}")
-        if container_status.state.terminated is not None:
+        if container_status.state is not None and container_status.state.terminated is not None:
             # Container has finished
             if container_status.state.terminated.exit_code == 0:
                 # Job has succeeded
@@ -290,27 +290,28 @@ class JobWatcher:
         v1_core = client.CoreV1Api()
         seconds_in_30_minutes = 60 * 30
         # If pod is younger than 30 minutes it can't be stalled for 30 minutes, if older, then check.
-        if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
-            seconds=seconds_in_30_minutes
-        ):
-            logs = _read_pod_logs(
-                v1_core,
-                name=self.pod.metadata.name,
-                namespace=self.pod.metadata.namespace,
-                timestamps=True,
-                tail_lines=1,
-                since_seconds=seconds_in_30_minutes,
-                container=self.container_name,
-            )
-            if logs == "":
-                logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_30_minutes)
+        if self.pod.metadata is not None and self.pod.metadata.creation_timestamp is not None:
+            if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
+                seconds=seconds_in_30_minutes
+            ):
+                logs = _read_pod_logs(
+                    v1_core,
+                    name=self.pod.metadata.name,
+                    namespace=self.pod.metadata.namespace,
+                    timestamps=True,
+                    tail_lines=1,
+                    since_seconds=seconds_in_30_minutes,
+                    container=self.container_name,
+                )
+                if logs == "":
+                    logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_30_minutes)
+                    return True
+            if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
+                seconds=self.max_time_to_complete
+            ):
+                logger.info("Pod has timed out: %s", self.pod.metadata.name)
                 return True
-        if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
-            seconds=self.max_time_to_complete
-        ):
-            logger.info("Pod has timed out: %s", self.pod.metadata.name)
-            return True
-        return False
+            return False
 
     def _find_start_and_end_of_pod(self, pod: V1Pod) -> tuple[Any, Any | None]:
         """
