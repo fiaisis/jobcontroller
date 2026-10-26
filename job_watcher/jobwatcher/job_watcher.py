@@ -321,7 +321,7 @@ class JobWatcher:
         :return: Tuple[Any, Optional[Any]], The start datetime, and the optional end datetime if the pod has finished.
         """
         v1_core = client.CoreV1Api()
-        assert pod.metadata is not None
+        assert pod.metadata is not None and pod.metadata.name is not None
         pod = v1_core.read_namespaced_pod(pod.metadata.name, self.namespace)
         assert pod.status is not None
         start_time = pod.status.start_time
@@ -414,7 +414,7 @@ class JobWatcher:
                 f"Pod name can't be None, {job_name} name and {self.namespace} "
                 f"namespace returned None when looking for a pod."
             )
-        assert self.pod.metadata is not None
+        assert self.pod.metadata is not None and self.pod.metadata.name is not None
         v1_core = client.CoreV1Api()
         # Fetch the pod's logs and parse out the JSON status blob it printed as its last line
         try:
