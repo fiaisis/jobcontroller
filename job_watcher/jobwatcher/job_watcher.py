@@ -312,6 +312,7 @@ class JobWatcher:
                 logger.info("Pod has timed out: %s", self.pod.metadata.name)
                 return True
             return False
+        return False
 
     def _find_start_and_end_of_pod(self, pod: V1Pod) -> tuple[Any, Any | None]:
         """
