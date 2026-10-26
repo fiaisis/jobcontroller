@@ -49,14 +49,14 @@ def load_kubernetes_config() -> None:
     :return: None
     """
     try:
-        config.load_incluster_config()  # type: ignore
+        config.load_incluster_config()
     except ConfigException:
         # Load config that is set as KUBECONFIG in the OS or in the default location
         kubeconfig_path = os.getenv("KUBECONFIG", None)
         if kubeconfig_path:
-            config.load_kube_config(config_file=kubeconfig_path)  # type: ignore
+            config.load_kube_config(config_file=kubeconfig_path)
         else:
-            config.load_kube_config()  # type: ignore
+            config.load_kube_config()
 
 
 def create_ceph_mount_path_simple(
