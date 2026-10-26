@@ -43,7 +43,7 @@ def _read_pod_logs(v1_core: client.CoreV1Api, **kwargs: Any) -> str:
     :param kwargs: kwargs forwarded to read_namespaced_pod_log (name, namespace, container, etc.)
     :return: str, the raw pod log content, decoded as utf-8
     """
-    raw_response = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)
+    raw_response: Any = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)  # type: ignore[call-arg]
     return cast("bytes", raw_response.data).decode("utf-8", errors="replace")
 
 
@@ -321,11 +321,13 @@ class JobWatcher:
         :return: Tuple[Any, Optional[Any]], The start datetime, and the optional end datetime if the pod has finished.
         """
         v1_core = client.CoreV1Api()
+        assert pod.metadata is not None
         pod = v1_core.read_namespaced_pod(pod.metadata.name, self.namespace)
+        assert pod.status is not None
         start_time = pod.status.start_time
         end_time = None
         container_status = self.get_container_status()
-        if container_status is not None and container_status.state.terminated:
+        if container_status is not None and container_status.state is not None and container_status.state.terminated:
             end_time = container_status.state.terminated.finished_at
         return start_time, end_time
 
@@ -338,6 +340,7 @@ class JobWatcher:
         if self.pod is None:
             raise AttributeError("Pod must be set in the JobWatcher before calling this function.")
         v1_core = client.CoreV1Api()
+        assert self.pod.metadata is not None
         raw_logs = _read_pod_logs(
             v1_core,
             name=self.pod.metadata.name,
@@ -388,8 +391,10 @@ class JobWatcher:
         if self.pod is None or self.job is None:
             raise AttributeError("Pod and job must be set in the JobWatcher before calling this function.")
         raised_error, stacktrace = self._find_latest_raised_error_and_stacktrace()
+        assert self.job.metadata is not None
+        assert self.job.metadata.annotations is not None
         logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
-        job_id = self.job.metadata.annotations["job-id"]
+        job_id = int(self.job.metadata.annotations["job-id"])
         start, end = self._find_start_and_end_of_pod(self.pod)
         self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
@@ -400,13 +405,16 @@ class JobWatcher:
         """
         if self.job is None:
             raise AttributeError("Job must be set in the JobWatcher before calling this function.")
+        assert self.job.metadata is not None
+        assert self.job.metadata.annotations is not None
         job_name = self.job.metadata.name
-        job_id = self.job.metadata.annotations.get("job-id")
+        job_id = int(self.job.metadata.annotations.get("job-id", "0"))
         if self.pod is None:
             raise AttributeError(
                 f"Pod name can't be None, {job_name} name and {self.namespace} "
                 f"namespace returned None when looking for a pod."
             )
+        assert self.pod.metadata is not None
         v1_core = client.CoreV1Api()
         # Fetch the pod's logs and parse out the JSON status blob it printed as its last line
         try:
@@ -455,6 +463,7 @@ class JobWatcher:
         """
         if self.job is None:
             raise AttributeError("Job must be set in the JobWatcher before calling this function.")
+        assert self.job.metadata is not None
         logger.info("Starting cleanup of job %s", self.job.metadata.name)
         clean_up_pvs_for_job(self.job)
         clean_up_pvcs_for_job(self.job, self.namespace)
