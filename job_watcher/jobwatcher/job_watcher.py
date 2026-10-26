@@ -249,7 +249,7 @@ class JobWatcher:
         :return: Optional[V1ContainerStatus], The job's main container status
         """
         # Find container
-        if self.pod is not None:
+        if self.pod is not None and self.pod.status is not None:
             for container_status in self.pod.status.container_statuses:
                 if container_status.name == self.container_name:
                     return container_status
