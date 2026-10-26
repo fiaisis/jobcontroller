@@ -79,6 +79,7 @@ def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
     :return: None
     """
     v1 = client.CoreV1Api()
+    assert job.metadata.annotations is not None
     pvcs_to_delete_str = job.metadata.annotations["pvcs"]
     # Clean up the string and turn it into a list
     pvcs_to_delete = pvcs_to_delete_str.strip("][").split(", ")
@@ -98,6 +99,7 @@ def clean_up_pvs_for_job(job: V1Job) -> None:
     :return: None
     """
     v1 = client.CoreV1Api()
+    assert job.metadata.annotations is not None
     pvs_to_delete_str = job.metadata.annotations["pvs"]
     # Clean up the string and turn it into a list
     pvs_to_delete = pvs_to_delete_str.strip("][").split(", ")
@@ -212,6 +214,7 @@ class JobWatcher:
             self.pod = _find_pod_from_partial_name(partial_pod_name, namespace=self.namespace)
             if self.pod is None:
                 raise ValueError(f"The pod could not be found using partial pod name: {partial_pod_name}")
+            assert self.pod.metadata is not None
             logger.info("Pod found: %s", self.pod.metadata.name)
             self.pod_name = self.pod.metadata.name
         else:
