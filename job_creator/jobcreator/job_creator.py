@@ -50,7 +50,7 @@ def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "
     resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
     spec = client.V1PersistentVolumeClaimSpec(
         access_modes=[access_mode],
-        resources=resources, #type: ignore
+        resources=resources,  # type: ignore
         volume_name=pv_name,
         storage_class_name="",
     )
@@ -452,11 +452,11 @@ class JobCreator:
             ],
         )
 
-        affinity = _generate_affinities(node_affinity_dict=affinity) # type: ignore
+        affinity = _generate_affinities(node_affinity_dict=affinity)  # type: ignore
         tolerations = _generate_tolerations_from_taints(taints)
 
         pod_spec = client.V1PodSpec(
-            affinity=affinity, # type: ignore
+            affinity=affinity,  # type: ignore
             service_account_name="jobwatcher",
             containers=[main_container, watcher_container],
             restart_policy="Never",
