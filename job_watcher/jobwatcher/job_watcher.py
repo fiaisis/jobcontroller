@@ -124,6 +124,8 @@ def _find_pod_from_partial_name(partial_pod_name: str, namespace: str) -> V1Pod 
     v1 = client.CoreV1Api()
     pods_in_fia = v1.list_namespaced_pod(namespace=namespace)
     for pod in pods_in_fia.items:
+        if pod.metadata is None or pod.metadata.name is None:
+            continue
         if partial_pod_name in pod.metadata.name:
             return pod
     return None
