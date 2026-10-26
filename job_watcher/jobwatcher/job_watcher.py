@@ -79,6 +79,7 @@ def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
     :return: None
     """
     v1 = client.CoreV1Api()
+    assert job.metadata is not None
     assert job.metadata.annotations is not None
     pvcs_to_delete_str = job.metadata.annotations["pvcs"]
     # Clean up the string and turn it into a list
@@ -99,6 +100,7 @@ def clean_up_pvs_for_job(job: V1Job) -> None:
     :return: None
     """
     v1 = client.CoreV1Api()
+    assert job.metadata is not None
     assert job.metadata.annotations is not None
     pvs_to_delete_str = job.metadata.annotations["pvs"]
     # Clean up the string and turn it into a list
