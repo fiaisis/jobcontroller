@@ -397,7 +397,7 @@ class JobWatcher:
         else:
             raise ValueError("Job metadata or annotations are not set in the job object.")
         if self.job.metadata.annotations.get("job-id") is not None:
-            job_id = int(self.job.metadata.annotations.get("job-id"))  
+            job_id = int(self.job.metadata.annotations.get("job-id"))
         else:
             raise ValueError("Job ID is not set in the job's annotations.")
         start, end = self._find_start_and_end_of_pod(self.pod)
@@ -414,7 +414,7 @@ class JobWatcher:
         assert self.job.metadata.annotations is not None
         job_name = self.job.metadata.name
         if self.job.metadata.annotations.get("job-id") is not None:
-            job_id = int(self.job.metadata.annotations.get("job-id"))  
+            job_id = int(self.job.metadata.annotations.get("job-id"))
         else:
             raise ValueError("Job ID is not set in the job's annotations.")
         if self.pod is None:
