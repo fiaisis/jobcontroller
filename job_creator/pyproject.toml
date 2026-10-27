@@ -8,7 +8,6 @@ dependencies = [
     "pika==1.4.4",
 ]
 
-
 [project.urls]
 "Repository" = "https://github.com/fiaisis/jobcontroller"
 
