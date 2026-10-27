@@ -392,10 +392,14 @@ class JobWatcher:
         if self.pod is None or self.job is None:
             raise AttributeError("Pod and job must be set in the JobWatcher before calling this function.")
         raised_error, stacktrace = self._find_latest_raised_error_and_stacktrace()
-        assert self.job.metadata is not None
-        assert self.job.metadata.annotations is not None
-        logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
-        job_id = int(self.job.metadata.annotations.get("job-id"))
+        if self.job.metadata is not None and self.job.metadata.annotations is not None:
+            logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
+        else:
+            raise ValueError("Job metadata or annotations are not set in the job object.")
+        if self.job.metadata.annotations.get("job-id") is None:
+            raise ValueError("Job ID is not set in the job's annotations.")
+        else:
+            job_id = int(self.job.metadata.annotations.get("job-id"))
         start, end = self._find_start_and_end_of_pod(self.pod)
         self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
