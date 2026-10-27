@@ -13,8 +13,8 @@ from time import sleep
 from typing import Any, Literal, cast
 
 import requests
-from kubernetes import client
-from kubernetes.client import V1ContainerStatus, V1Job, V1Pod
+from kubernetes import client  # type: ignore[import-untyped]
+from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
 
 from jobwatcher.utils import logger
 
@@ -43,7 +43,7 @@ def _read_pod_logs(v1_core: client.CoreV1Api, **kwargs: Any) -> str:
     :param kwargs: kwargs forwarded to read_namespaced_pod_log (name, namespace, container, etc.)
     :return: str, the raw pod log content, decoded as utf-8
     """
-    raw_response: Any = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)  # type: ignore[call-arg]
+    raw_response: Any = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)
     return cast("bytes", raw_response.data).decode("utf-8", errors="replace")
 
 

@@ -4,7 +4,7 @@ Communicate to a kubernetes API to spawn a pod with the metadata passed by messa
 
 from typing import Any
 
-from kubernetes import client # type: ignore[import-untyped]
+from kubernetes import client  # type: ignore[import-untyped]
 
 from jobcreator.utils import load_kubernetes_config, logger
 
