@@ -398,8 +398,7 @@ class JobWatcher:
             raise ValueError("Job metadata or annotations are not set in the job object.")
         if self.job.metadata.annotations.get("job-id") is None:
             raise ValueError("Job ID is not set in the job's annotations.")
-        else:
-            job_id = int(self.job.metadata.annotations.get("job-id"))
+        job_id = int(self.job.metadata.annotations.get("job-id"))
         start, end = self._find_start_and_end_of_pod(self.pod)
         self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
