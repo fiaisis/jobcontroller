@@ -66,10 +66,10 @@ def test_setup_pvc(client):
     _setup_pvc(pvc_name, pv_name, namespace)
 
     client.V1ObjectMeta.assert_called_once_with(name=pvc_name)
-    client.V1ResourceRequirements.assert_called_once_with(requests={"storage": "1000Gi"})
+    client.V1VolumeResourceRequirements.assert_called_once_with(requests={"storage": "1000Gi"})
     client.V1PersistentVolumeClaimSpec.assert_called_once_with(
         access_modes=["ReadOnlyMany"],
-        resources=client.V1ResourceRequirements.return_value,
+        resources=client.V1VolumeResourceRequirements.return_value,
         volume_name=pv_name,
         storage_class_name="",
     )

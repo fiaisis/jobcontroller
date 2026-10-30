@@ -4,7 +4,7 @@ Communicate to a kubernetes API to spawn a pod with the metadata passed by messa
 
 from typing import Any
 
-from kubernetes import client  # type: ignore[import-untyped]
+from kubernetes import client
 
 from jobcreator.utils import load_kubernetes_config, logger
 
@@ -47,7 +47,7 @@ def _setup_pvc(pvc_name: str, pv_name: str, namespace: str, access_mode: str = "
     :param namespace: str, The namespace to create the pvc in
     """
     metadata = client.V1ObjectMeta(name=pvc_name)
-    resources = client.V1ResourceRequirements(requests={"storage": "1000Gi"})
+    resources = client.V1VolumeResourceRequirements(requests={"storage": "1000Gi"})
     spec = client.V1PersistentVolumeClaimSpec(
         access_modes=[access_mode],
         resources=resources,
@@ -452,11 +452,11 @@ class JobCreator:
             ],
         )
 
-        affinity = _generate_affinities(node_affinity_dict=affinity)
+        v1_affinity = _generate_affinities(node_affinity_dict=affinity)
         tolerations = _generate_tolerations_from_taints(taints)
 
         pod_spec = client.V1PodSpec(
-            affinity=affinity,
+            affinity=v1_affinity,
             service_account_name="jobwatcher",
             containers=[main_container, watcher_container],
             restart_policy="Never",
