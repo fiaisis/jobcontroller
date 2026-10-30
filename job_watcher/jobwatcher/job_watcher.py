@@ -7,20 +7,64 @@ import json
 import os
 import time
 from contextlib import suppress
+from dataclasses import dataclass
 from http import HTTPStatus
 from json import JSONDecodeError
 from time import sleep
 from typing import Any, Literal, cast
 
 import requests
-from kubernetes import client  # type: ignore[import-untyped]
-from kubernetes.client import V1ContainerStatus, V1Job, V1Pod  # type: ignore[import-untyped]
+from kubernetes import client
+from kubernetes.client import V1ContainerStatus, V1Job, V1Pod
 
 from jobwatcher.utils import logger
 
 StateString = Literal["SUCCESSFUL", "UNSUCCESSFUL", "ERROR", "NOT_STARTED"]
 FIA_API_HOST = os.environ.get("FIA_API", "fia-api-service.fia.svc.cluster.local:80")
 FIA_API_API_KEY = os.environ.get("FIA_API_API_KEY")
+
+
+@dataclass(frozen=True)
+class ResourceMetadata:
+    """
+    Validated metadata for a Kubernetes Job or Pod resource.
+    """
+
+    name: str
+    namespace: str
+    creation_timestamp: datetime.datetime
+    annotations: dict[str, str]
+
+
+def parse_resource_metadata(resource: V1Job | V1Pod) -> ResourceMetadata:
+    """
+    Validate and extract required metadata fields from a Kubernetes Job or Pod resource.
+    :param resource: V1Job | V1Pod, the Kubernetes resource to validate
+    :return: ResourceMetadata, the validated metadata
+    :raises ValueError: if metadata or required fields (name, namespace, creation_timestamp) are missing
+    """
+    metadata = resource.metadata
+    if metadata is None or metadata.name is None or metadata.namespace is None or metadata.creation_timestamp is None:
+        raise ValueError("Kubernetes resource is missing required metadata")
+    return ResourceMetadata(
+        name=metadata.name,
+        namespace=metadata.namespace,
+        creation_timestamp=metadata.creation_timestamp,
+        annotations=metadata.annotations if metadata.annotations is not None else {},
+    )
+
+
+def parse_job_id(metadata: ResourceMetadata) -> int:
+    """
+    Extract and validate the integer job-id annotation from validated resource metadata.
+    :param metadata: ResourceMetadata, the validated metadata of a Job
+    :return: int, the parsed job ID
+    :raises ValueError: if the job-id annotation is missing or not a valid integer
+    """
+    raw_job_id = metadata.annotations.get("job-id")
+    if raw_job_id is None:
+        raise ValueError("Job is missing required 'job-id' annotation")
+    return int(raw_job_id)
 
 
 def _read_pod_logs(v1_core: client.CoreV1Api, **kwargs: Any) -> str:
@@ -79,7 +123,8 @@ def clean_up_pvcs_for_job(job: V1Job, namespace: str) -> None:
     :return: None
     """
     v1 = client.CoreV1Api()
-    pvcs_to_delete_str = job.metadata.annotations["pvcs"]
+    job_metadata = parse_resource_metadata(job)
+    pvcs_to_delete_str = job_metadata.annotations["pvcs"]
     # Clean up the string and turn it into a list
     pvcs_to_delete = pvcs_to_delete_str.strip("][").split(", ")
     logger.info("Deleting pvcs: %s", pvcs_to_delete)
@@ -98,7 +143,8 @@ def clean_up_pvs_for_job(job: V1Job) -> None:
     :return: None
     """
     v1 = client.CoreV1Api()
-    pvs_to_delete_str = job.metadata.annotations["pvs"]
+    job_metadata = parse_resource_metadata(job)
+    pvs_to_delete_str = job_metadata.annotations["pvs"]
     # Clean up the string and turn it into a list
     pvs_to_delete = pvs_to_delete_str.strip("][").split(", ")
     logger.info("Deleting pvs: %s", pvs_to_delete)
@@ -120,7 +166,7 @@ def _find_pod_from_partial_name(partial_pod_name: str, namespace: str) -> V1Pod 
     v1 = client.CoreV1Api()
     pods_in_fia = v1.list_namespaced_pod(namespace=namespace)
     for pod in pods_in_fia.items:
-        if partial_pod_name in pod.metadata.name:
+        if pod.metadata is not None and pod.metadata.name is not None and partial_pod_name in pod.metadata.name:
             return pod
     return None
 
@@ -207,19 +253,22 @@ class JobWatcher:
         v1 = client.CoreV1Api()
         v1_batch = client.BatchV1Api()
         self.job = v1_batch.read_namespaced_job(self.job_name, namespace=self.namespace)
+        parse_resource_metadata(self.job)
         if partial_pod_name is not None:
             logger.info("Finding the pod including name: %s", partial_pod_name)
             self.pod = _find_pod_from_partial_name(partial_pod_name, namespace=self.namespace)
             if self.pod is None:
                 raise ValueError(f"The pod could not be found using partial pod name: {partial_pod_name}")
-            logger.info("Pod found: %s", self.pod.metadata.name)
-            self.pod_name = self.pod.metadata.name
+            pod_metadata = parse_resource_metadata(self.pod)
+            logger.info("Pod found: %s", pod_metadata.name)
+            self.pod_name = pod_metadata.name
         else:
             if self.pod_name is None:
                 raise ValueError(
                     "Can't update container info if pod_name was not set and partial_pod_name not provided."
                 )
             self.pod = v1.read_namespaced_pod(name=self.pod_name, namespace=self.namespace)
+            parse_resource_metadata(self.pod)
 
     def check_for_changes(self) -> None:
         """
@@ -242,7 +291,7 @@ class JobWatcher:
         :return: Optional[V1ContainerStatus], The job's main container status
         """
         # Find container
-        if self.pod is not None:
+        if self.pod is not None and self.pod.status is not None and self.pod.status.container_statuses is not None:
             for container_status in self.pod.status.container_statuses:
                 if container_status.name == self.container_name:
                     return container_status
@@ -257,7 +306,7 @@ class JobWatcher:
         container_status = self.get_container_status()
         if container_status is None:
             raise ValueError(f"Container not found: {self.container_name}")
-        if container_status.state.terminated is not None:
+        if container_status.state is not None and container_status.state.terminated is not None:
             # Container has finished
             if container_status.state.terminated.exit_code == 0:
                 # Job has succeeded
@@ -280,28 +329,29 @@ class JobWatcher:
         """
         if self.pod is None:
             raise AttributeError("Pod must be set in the JobWatcher before calling this function.")
+        pod_metadata = parse_resource_metadata(self.pod)
         v1_core = client.CoreV1Api()
         seconds_in_30_minutes = 60 * 30
         # If pod is younger than 30 minutes it can't be stalled for 30 minutes, if older, then check.
-        if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
+        if (datetime.datetime.now(datetime.UTC) - pod_metadata.creation_timestamp) > datetime.timedelta(
             seconds=seconds_in_30_minutes
         ):
             logs = _read_pod_logs(
                 v1_core,
-                name=self.pod.metadata.name,
-                namespace=self.pod.metadata.namespace,
+                name=pod_metadata.name,
+                namespace=pod_metadata.namespace,
                 timestamps=True,
                 tail_lines=1,
                 since_seconds=seconds_in_30_minutes,
                 container=self.container_name,
             )
             if logs == "":
-                logger.info("No new logs for pod %s in %s seconds", self.pod.metadata.name, seconds_in_30_minutes)
+                logger.info("No new logs for pod %s in %s seconds", pod_metadata.name, seconds_in_30_minutes)
                 return True
-        if (datetime.datetime.now(datetime.UTC) - self.pod.metadata.creation_timestamp) > datetime.timedelta(
+        if (datetime.datetime.now(datetime.UTC) - pod_metadata.creation_timestamp) > datetime.timedelta(
             seconds=self.max_time_to_complete
         ):
-            logger.info("Pod has timed out: %s", self.pod.metadata.name)
+            logger.info("Pod has timed out: %s", pod_metadata.name)
             return True
         return False
 
@@ -312,11 +362,12 @@ class JobWatcher:
         :return: Tuple[Any, Optional[Any]], The start datetime, and the optional end datetime if the pod has finished.
         """
         v1_core = client.CoreV1Api()
-        pod = v1_core.read_namespaced_pod(pod.metadata.name, self.namespace)
-        start_time = pod.status.start_time
+        pod_metadata = parse_resource_metadata(pod)
+        refreshed_pod = v1_core.read_namespaced_pod(pod_metadata.name, self.namespace)
+        start_time = refreshed_pod.status.start_time if refreshed_pod.status is not None else None
         end_time = None
         container_status = self.get_container_status()
-        if container_status is not None and container_status.state.terminated:
+        if container_status is not None and container_status.state is not None and container_status.state.terminated:
             end_time = container_status.state.terminated.finished_at
         return start_time, end_time
 
@@ -328,11 +379,12 @@ class JobWatcher:
         """
         if self.pod is None:
             raise AttributeError("Pod must be set in the JobWatcher before calling this function.")
+        pod_metadata = parse_resource_metadata(self.pod)
         v1_core = client.CoreV1Api()
         raw_logs = _read_pod_logs(
             v1_core,
-            name=self.pod.metadata.name,
-            namespace=self.pod.metadata.namespace,
+            name=pod_metadata.name,
+            namespace=pod_metadata.namespace,
             tail_lines=50,
             container=self.container_name,
         )
@@ -378,9 +430,10 @@ class JobWatcher:
         """
         if self.pod is None or self.job is None:
             raise AttributeError("Pod and job must be set in the JobWatcher before calling this function.")
+        job_metadata = parse_resource_metadata(self.job)
         raised_error, stacktrace = self._find_latest_raised_error_and_stacktrace()
-        logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
-        job_id = int(self.job.metadata.annotations.get("job-id"))
+        logger.info("Job %s has failed, with message: %s", job_metadata.name, raised_error)
+        job_id = parse_job_id(job_metadata)
         start, end = self._find_start_and_end_of_pod(self.pod)
         self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
@@ -391,17 +444,19 @@ class JobWatcher:
         """
         if self.job is None:
             raise AttributeError("Job must be set in the JobWatcher before calling this function.")
-        job_name = self.job.metadata.name
-        job_id = int(self.job.metadata.annotations.get("job-id"))
+        job_metadata = parse_resource_metadata(self.job)
+        job_name = job_metadata.name
+        job_id = parse_job_id(job_metadata)
         if self.pod is None:
             raise AttributeError(
                 f"Pod name can't be None, {job_name} name and {self.namespace} "
                 f"namespace returned None when looking for a pod."
             )
+        pod_metadata = parse_resource_metadata(self.pod)
         v1_core = client.CoreV1Api()
         # Fetch the pod's logs and parse out the JSON status blob it printed as its last line
         try:
-            job_output = get_job_output(v1_core, self.pod.metadata.name, self.namespace, self.container_name)
+            job_output = get_job_output(v1_core, pod_metadata.name, self.namespace, self.container_name)
             logger.info("Job %s has been completed with output: %s", job_name, job_output)
         except JSONDecodeError as exception:
             logger.error("Last messages in job does not contain a JSON string or it could not be found.")
@@ -446,6 +501,7 @@ class JobWatcher:
         """
         if self.job is None:
             raise AttributeError("Job must be set in the JobWatcher before calling this function.")
-        logger.info("Starting cleanup of job %s", self.job.metadata.name)
+        job_metadata = parse_resource_metadata(self.job)
+        logger.info("Starting cleanup of job %s", job_metadata.name)
         clean_up_pvs_for_job(self.job)
         clean_up_pvcs_for_job(self.job, self.namespace)
