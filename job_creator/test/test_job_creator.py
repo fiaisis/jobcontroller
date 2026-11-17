@@ -132,7 +132,7 @@ def test_setup_manila_pv_gem(client):
 
     assert (
         _setup_manila_pv(
-            pv_name, False, secret_namespace, manila_share_id, manila_share_access_id, access_mode="ReadWriteOnce"
+            pv_name, False, secret_namespace, manila_share_id, manila_share_access_id, access_mode="ReadWriteMany"
         )
         == pv_name
     )
@@ -149,7 +149,7 @@ def test_setup_manila_pv_gem(client):
     client.V1ObjectMeta.assert_called_once_with(name=pv_name, labels={"name": pv_name})
     client.V1PersistentVolumeSpec.assert_called_once_with(
         capacity={"storage": "1000Gi"},
-        access_modes=["ReadWriteOnce"],
+        access_modes=["ReadWriteMany"],
         csi=client.V1CSIPersistentVolumeSource.return_value,
     )
     client.V1CSIPersistentVolumeSource.assert_called_once_with(
@@ -816,7 +816,7 @@ def test_jobcreator_spawn_job_dev_mode_true_gem(
         secret_namespace=job_namespace,
         manila_share_id=manila_share_id,
         manila_share_access_id=manila_share_access_id,
-        access_mode="ReadWriteOnce",
+        access_mode="ReadWriteMany",
     )
     calls = [manila_call_1, manila_call_2]
     setup_manila_pv.assert_has_calls(calls, any_order=True)
