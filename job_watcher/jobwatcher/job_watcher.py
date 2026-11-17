@@ -43,7 +43,7 @@ def _read_pod_logs(v1_core: client.CoreV1Api, **kwargs: Any) -> str:
     :param kwargs: kwargs forwarded to read_namespaced_pod_log (name, namespace, container, etc.)
     :return: str, the raw pod log content, decoded as utf-8
     """
-    raw_response = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)
+    raw_response: Any = v1_core.read_namespaced_pod_log(_preload_content=False, **kwargs)
     return cast("bytes", raw_response.data).decode("utf-8", errors="replace")
 
 
@@ -380,7 +380,7 @@ class JobWatcher:
             raise AttributeError("Pod and job must be set in the JobWatcher before calling this function.")
         raised_error, stacktrace = self._find_latest_raised_error_and_stacktrace()
         logger.info("Job %s has failed, with message: %s", self.job.metadata.name, raised_error)
-        job_id = self.job.metadata.annotations["job-id"]
+        job_id = int(self.job.metadata.annotations.get("job-id"))
         start, end = self._find_start_and_end_of_pod(self.pod)
         self._update_job_status(job_id, "ERROR", raised_error, [], str(start), stacktrace, str(end))
 
@@ -392,7 +392,7 @@ class JobWatcher:
         if self.job is None:
             raise AttributeError("Job must be set in the JobWatcher before calling this function.")
         job_name = self.job.metadata.name
-        job_id = self.job.metadata.annotations.get("job-id")
+        job_id = int(self.job.metadata.annotations.get("job-id"))
         if self.pod is None:
             raise AttributeError(
                 f"Pod name can't be None, {job_name} name and {self.namespace} "

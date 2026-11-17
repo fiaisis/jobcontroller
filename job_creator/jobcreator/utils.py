@@ -46,7 +46,7 @@ def load_kubernetes_config() -> None:
     """
     Load the kubernetes config for the kubernetes library, attempt incluster first, then try the KUBECONFIG variable,
     then finally try the default kube config locations
-    :return:
+    :return: None
     """
     try:
         config.load_incluster_config()
