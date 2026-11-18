@@ -116,8 +116,9 @@ that data interactively:
 ```
 job_creator/                 JobCreator subproject (independent Python package `jobcreator`)
   jobcreator/                Application source: CLI entrypoint (`jobcreator`), RabbitMQ consumer,
-                              FIA-API script acquisition (`POST /job/autoreduction`), K8s PV/PVC
-                              builders (SMB /archive & /imat, Manila /extras & /gem, CephFS /output),
+                              FIA-API script acquisition (`POST /job/autoreduction`), run-kind
+                              detection (nGEM vs instrument), K8s PV/PVC
+                              builders (SMB /archive, /imat & /ngem, Manila /extras & /gem, CephFS /output),
                               and BatchV1 Job spawning with taints/affinities/GPU runtime
   test/                      Pytest unit test suite for `jobcreator` plus fixture files
   pyproject.toml, README.md  Package metadata, pinned dependencies, ruff config, and JSON message
@@ -159,7 +160,7 @@ This repository has **no root `pyproject.toml`**; instead, `job_creator/pyprojec
 | Variable | Default / Requirement | Description |
 | :--- | :--- | :--- |
 | `DEFAULT_RUNNER_SHA` | *(required — raises `OSError` if unset)* | `sha256` digest for `ghcr.io/fiaisis/mantid@sha256:...` |
-| `IMAGING_RUNNER_SHA` | `None` (falls back to `DEFAULT_RUNNER` if unset) | `sha256` digest for `ghcr.io/fiaisis/mantidimaging@sha256:...` (used for IMAT) |
+| `IMAGING_RUNNER_SHA` | `None` (falls back to `DEFAULT_RUNNER` if unset) | `sha256` digest for `ghcr.io/fiaisis/mantidimaging@sha256:...` (IMAT reconstructions only — nGEM runs use `DEFAULT_RUNNER`) |
 | `WATCHER_SHA` | *(required — raises `OSError` if unset)* | `sha256` digest for `ghcr.io/fiaisis/jobwatcher@sha256:...` sidecar |
 | `DEV_MODE` | `"False"` | When truthy (not `"false"`), mounts a 100Gi `emptyDir` at `/output` instead of CephFS |
 | `FIA_API` | `fia-api-service.fia.svc.cluster.local:80` | Host:port for `FIA-API` (`POST /job/autoreduction`, passed to watcher as `FIA_API_HOST`) |
@@ -170,7 +171,10 @@ This repository has **no root `pyproject.toml`**; instead, `job_creator/pyprojec
 | `JOB_NAMESPACE` | `fia` | Kubernetes namespace where Jobs, PVs, and PVCs are created |
 | `CEPH_CREDS_SECRET_NAME` / `CEPH_CREDS_SECRET_NAMESPACE` | `ceph-creds` / `fia` | Kubernetes Secret for CephFS mounts |
 | `CLUSTER_ID` / `FS_NAME` | `ba68226a-672f-4ba5-97bc-22840318b2ec` / `deneb` | Ceph cluster ID and filesystem name |
-| `MANILA_SHARE_ID` / `MANILA_SHARE_ACCESS_ID` | *(defaults in `main.py`)* | OpenStack Manila share IDs for `/extras` and `/gem` |
+| `MANILA_SHARE_ID` / `MANILA_SHARE_ACCESS_ID` | *(defaults in `main.py`)* | OpenStack Manila share IDs, mounted read-only at `/extras` for every job and read-write at `/gem` for GEM jobs — the **same** share, two PVs |
+| `NGEM_SMB_SOURCE` | `//isis.cclrc.ac.uk/Science` | SMB share mounted read-write at `/ngem` for nGEM runs (uses `archive-creds`) |
+| `NGEM_KEY` | `ngem` | Key checked in `additional_values` (or at message top level) to spot an nGEM run — must match run-detection's `IMATFindImagesRule` |
+| `NGEM_SPECIAL_PV` | `ngem` | Token in `special_pvs` that asks `spawn_job` for the `/ngem` mount |
 | `MAX_TIME_TO_COMPLETE` | `21600` (6 hours) | Maximum job runtime in seconds passed to `jobwatcher` |
 
 ### `jobwatcher` environment variables
@@ -188,11 +192,23 @@ This repository has **no root `pyproject.toml`**; instead, `job_creator/pyprojec
   `kubernetes-client`'s `ApiClient.deserialize()` does not corrupt JSON log lines into single-quoted
   Python `dict` reprs or `b'...'` byte-repr strings. Preserve this pattern when touching log
   handling.
-- **IMAT & GEM special handling in `jobcreator`**:
+- **nGEM, IMAT & GEM special handling in `jobcreator`**: the run kind is resolved by
+  `jobcreator/run_kind.py` (`is_ngem_run`), and **nGEM is always checked before the instrument** —
+  nGEM is a property of the detector used, not of the instrument, so the same rule applies when other
+  instruments start producing nGEM runs.
+  - `ngem` (`additional_values["ngem"] == "true"`, set by run-detection's `IMATFindImagesRule`;
+    rerun/simple messages may carry a top-level `ngem` key): Selects `DEFAULT_RUNNER` — the Mantid
+    Imaging runner has **no Mantid in it**, so `LoadNGEM` fails at import there — mounts the
+    read-write nGEM share (`NGEM_SMB_SOURCE`, `archive-creds`, SMB CSI) at `/ngem`, and applies **no**
+    taints, GPU affinity, `runtimeClassName`, GPU request, `/imat` mount or large `/dev/shm`. Not to
+    be confused with `gem`, which is the GEM instrument's Manila mount of the extras share.
   - `imat`: Selects `IMAGING_RUNNER`, mounts `/imat` (SMB) and a 128Gi memory-backed `/dev/shm`
     `emptyDir`, sets `runtime_class_name="nvidia"`, requests `nvidia.com/gpu: "1"`, and adds GPU
     toleration + `gpu-worker` node affinity.
   - `gem`: Mounts a read-write Manila share at `/gem`.
+  - Note: rerun messages carry no `additional_values`, so their image comes from the rerun job's
+    stored `runner_image` (self-healing once nGEM jobs are recorded against the Mantid runner) and
+    they only pick up nGEM mounts/taints once FIA-API starts forwarding the flag.
 
 ---
 

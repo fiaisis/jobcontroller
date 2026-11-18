@@ -3,9 +3,11 @@ from unittest import mock
 from unittest.mock import call
 
 from jobcreator.job_creator import (
+    NGEM_SMB_SOURCE,
     JobCreator,
     _setup_ceph_pv,
     _setup_manila_pv,
+    _setup_ngem_pv_and_pvcs,
     _setup_pvc,
     _setup_smb_pv,
 )
@@ -883,4 +885,114 @@ def test_jobcreator_spawn_job_dev_mode_false(
     assert client.V1Volume.call_count == 3  # noqa: PLR2004
     assert client.V1PersistentVolumeClaimVolumeSource.call_count == 2  # noqa: PLR2004
 
+    setup_ceph_pv.assert_not_called()
+
+
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+def test_setup_ngem_pv_and_pvcs(smb_pv, pvc):
+    pv_names = []
+    pvc_names = []
+
+    _setup_ngem_pv_and_pvcs("run-imat00012345", "fia", pv_names, pvc_names)
+
+    # The nGEM reduction writes its output back to the share, so it must not be read only.
+    smb_pv.assert_called_once_with(
+        "run-imat00012345-ngem-pv-smb", "archive-creds", "fia", NGEM_SMB_SOURCE, [], read_only=False
+    )
+    pvc.assert_called_once_with(
+        "run-imat00012345-ngem-pvc", "run-imat00012345-ngem-pv-smb", "fia", access_mode="ReadWriteMany"
+    )
+    assert pv_names == ["run-imat00012345-ngem-pv-smb"]
+    assert pvc_names == ["run-imat00012345-ngem-pvc"]
+
+
+@mock.patch("jobcreator.job_creator._setup_manila_pv")
+@mock.patch("jobcreator.job_creator._setup_smb_pv")
+@mock.patch("jobcreator.job_creator._setup_pvc")
+@mock.patch("jobcreator.job_creator._setup_ceph_pv")
+@mock.patch("jobcreator.job_creator.load_kubernetes_config")
+@mock.patch("jobcreator.job_creator.client")
+def test_jobcreator_spawn_job_dev_mode_true_ngem(
+    client,
+    _,  # noqa: PT019
+    setup_ceph_pv,
+    setup_pvc,
+    setup_smb_pv,
+    setup_manila_pv,
+):
+    job_name = "run-imat00012345"
+    script = mock.MagicMock()
+    job_namespace = mock.MagicMock()
+    ceph_creds_k8s_secret_name = mock.MagicMock()
+    ceph_creds_k8s_namespace = mock.MagicMock()
+    cluster_id = mock.MagicMock()
+    fs_name = mock.MagicMock()
+    ceph_mount_path = mock.MagicMock()
+    reduction_id = random.randint(1, 100)  # noqa: S311
+    max_time_to_complete_job = random.randint(1, 20000)  # noqa: S311
+    fia_api_host = mock.MagicMock()
+    fia_api_api_key = mock.MagicMock()
+    watcher_sha = mock.MagicMock()
+    job_creator = JobCreator(watcher_sha, True)
+    runner_image = mock.MagicMock()
+    manila_share_id = mock.MagicMock()
+    manila_share_access_id = mock.MagicMock()
+    special_pvs = ["ngem"]
+    taints = []
+    affinity = None
+
+    job_creator.spawn_job(
+        job_name,
+        script,
+        job_namespace,
+        ceph_creds_k8s_secret_name,
+        ceph_creds_k8s_namespace,
+        cluster_id,
+        fs_name,
+        ceph_mount_path,
+        reduction_id,
+        max_time_to_complete_job,
+        fia_api_host,
+        fia_api_api_key,
+        runner_image,
+        manila_share_id,
+        manila_share_access_id,
+        special_pvs,
+        taints,
+        affinity,
+    )
+
+    setup_smb_pv.assert_any_call(
+        f"{job_name}-ngem-pv-smb", "archive-creds", job_namespace, NGEM_SMB_SOURCE, [], read_only=False
+    )
+    setup_pvc.assert_any_call(
+        f"{job_name}-ngem-pvc", f"{job_name}-ngem-pv-smb", job_namespace, access_mode="ReadWriteMany"
+    )
+    assert call(claim_name=f"{job_name}-ngem-pvc", read_only=False) in (
+        client.V1PersistentVolumeClaimVolumeSource.call_args_list
+    )
+
+    # The client mocks return the same object whatever they are called with, so the mount names are
+    # read back from the recorded calls rather than compared against a constructed call.
+    mounts = client.V1VolumeMount.call_args_list
+    assert [mount.kwargs["name"] for mount in mounts] == [
+        "archive-mount",
+        "ceph-mount",
+        "extras-mount",
+        "ngem-mount",
+    ]
+    ngem_mount = next(mount for mount in mounts if mount.kwargs["name"] == "ngem-mount")
+    assert ngem_mount.kwargs["mount_path"] == "/ngem"
+    assert ngem_mount.kwargs["read_only"] is False
+
+    # nGEM is a Mantid, CPU only workload: no IMAT imaging mounts, no oversized shm, no GPU.
+    assert "imat-mount" not in [mount.kwargs["name"] for mount in mounts]
+    assert "/dev/shm" not in [mount.kwargs["mount_path"] for mount in mounts]  # noqa: S108
+    main_container = next(
+        container for container in client.V1Container.call_args_list if container.kwargs["name"] == job_name
+    )
+    assert main_container.kwargs["image"] == runner_image
+    assert main_container.kwargs["resources"] is None
+    assert client.V1PodSpec.call_args.kwargs["runtime_class_name"] is None
     setup_ceph_pv.assert_not_called()

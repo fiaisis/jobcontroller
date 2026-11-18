@@ -2,14 +2,26 @@
 Communicate to a kubernetes API to spawn a pod with the metadata passed by message to the RunMaker
 """
 
+import os
 from typing import Any
 
 from kubernetes import client  # type: ignore[import-untyped]
 
 from jobcreator.utils import load_kubernetes_config, logger
 
+# nGEM reductions read and write the ISIS Science share, the same one run-detection mounts to spot the runs.
+NGEM_SMB_SOURCE = os.environ.get("NGEM_SMB_SOURCE", "//isis.cclrc.ac.uk/Science")
 
-def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source: str, mount_options: list[str]) -> None:
+
+def _setup_smb_pv(
+    pv_name: str,
+    secret_name: str,
+    secret_namespace: str,
+    source: str,
+    mount_options: list[str],
+    read_only: bool = True,
+    access_mode: str | None = None,
+) -> None:
     """
     Sets up an smb PV using the loaded kubeconfig as a destination
     :param pv_name: str, The name given to the smb-pv when it's made
@@ -17,20 +29,25 @@ def _setup_smb_pv(pv_name: str, secret_name: str, secret_namespace: str, source:
     :param secret_namespace: str, the namespace of the secret
     :param source: str, The IP/url/uri that is used to mount the smb share
     :param mount_options: list, The mount options for the smb share
+    :param read_only: bool, Whether the share should be mounted read only
+    :param access_mode: str, The access mode of the PV, defaults to ReadOnlyMany, or ReadWriteMany when
+    the share is writable
     :return: str, the name of the archive PV
     """
+    if access_mode is None:
+        access_mode = "ReadOnlyMany" if read_only else "ReadWriteMany"
     metadata = client.V1ObjectMeta(name=pv_name, annotations={"pv.kubernetes.io/provisioned-by": "smb.csi.k8s.io"})
     secret_ref = client.V1SecretReference(name=secret_name, namespace=secret_namespace)
     csi = client.V1CSIPersistentVolumeSource(
         driver="smb.csi.k8s.io",
-        read_only=True,
+        read_only=read_only,
         volume_handle=pv_name,
         volume_attributes={"source": source},
         node_stage_secret_ref=secret_ref,
     )
     spec = client.V1PersistentVolumeSpec(
         capacity={"storage": "1000Gi"},
-        access_modes=["ReadOnlyMany"],
+        access_modes=[access_mode],
         persistent_volume_reclaim_policy="Retain",
         mount_options=mount_options,
         csi=csi,
@@ -149,6 +166,28 @@ def _setup_imat_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], 
     pvc_names.append(imat_pvc_name)
 
 
+def _setup_ngem_pv_and_pvcs(job_name: str, namespace: str, pv_names: list[str], pvc_names: list[str]) -> None:
+    """
+    Sets up the nGEM detector share for an nGEM reduction, mounted writable as the reduction saves
+    its output next to the raw .edb files.
+
+    GEM is an instrument and nGEM is a detector, so despite the similar names this shares nothing
+    with `_setup_gem_pv_and_pvcs`: that mounts the extras Manila share, this mounts the SMB share.
+
+    :param job_name: The name of the job the PV and PVC are for
+    :param namespace: The namespace to create the PVC in
+    :param pv_names: The list to append the created PV name to, for cleanup
+    :param pvc_names: The list to append the created PVC name to, for cleanup
+    :return: None
+    """
+    ngem_pv_name = f"{job_name}-ngem-pv-smb"
+    ngem_pvc_name = f"{job_name}-ngem-pvc"
+    _setup_smb_pv(ngem_pv_name, "archive-creds", namespace, NGEM_SMB_SOURCE, [], read_only=False)
+    _setup_pvc(ngem_pvc_name, ngem_pv_name, namespace, access_mode="ReadWriteMany")
+    pv_names.append(ngem_pv_name)
+    pvc_names.append(ngem_pvc_name)
+
+
 def _setup_gem_pv_and_pvcs(
     job_name: str,
     job_namespace: str,
@@ -157,6 +196,18 @@ def _setup_gem_pv_and_pvcs(
     manila_share_id: str,
     manila_share_access_id: str,
 ) -> None:
+    """
+    Sets up the GEM instrument's writable mount of the extras Manila share, which its reduction
+    algorithms write calibration files to. Nothing to do with nGEM, which is a detector share.
+
+    :param job_name: The name of the job the PV and PVC are for
+    :param job_namespace: The namespace to create the PVC in
+    :param pv_names: The list to append the created PV name to, for cleanup
+    :param pvc_names: The list to append the created PVC name to, for cleanup
+    :param manila_share_id: The id of the extras Manila share to mount
+    :param manila_share_access_id: The id of the access rule granting access to that share
+    :return: None
+    """
     gem_pv_name = f"{job_name}-ndxgem-pv"
     gem_pvc_name = f"{job_name}-ndxgem-pvc"
     _setup_manila_pv(
@@ -287,7 +338,8 @@ class JobCreator:
         :param manila_share_id: The id of the manila share to mount for extras
         :param manila_share_access_id: the id of the access rule for the manila share that provides access to the
         manila share
-        :param special_pvs: A list of special PV strings, that represent PVs that can be implemented.
+        :param special_pvs: A list of special PV strings, that represent PVs that can be implemented,
+        e.g. "imat", "gem" or "ngem".
         :param taints: A list of taints that the runner pods should have for example:
         [{"key": "gpu", "effect": "NoSchedule", "operator": "Exists"}]
         :param affinity: A dict that describes the node affinity of the job for example:
@@ -404,9 +456,18 @@ class JobCreator:
             )
             volumes_mounts.append(client.V1VolumeMount(name="dev-shm", mount_path="/dev/shm"))  # noqa: S108
 
+        if "ngem" in special_pvs:
+            _setup_ngem_pv_and_pvcs(job_name, job_namespace, pv_names, pvc_names)
+            ngem_pvc_source = client.V1PersistentVolumeClaimVolumeSource(
+                claim_name=f"{job_name}-ngem-pvc", read_only=False
+            )
+            volumes.append(client.V1Volume(name="ngem-mount", persistent_volume_claim=ngem_pvc_source))
+            volumes_mounts.append(client.V1VolumeMount(name="ngem-mount", mount_path="/ngem", read_only=False))
+
         # Decide whether this is a GPU workload. IMAT jobs run mantid imaging on GPU nodes and need
         # the NVIDIA runtime + a GPU resource request so the GPU Operator injects the matching
-        # userspace driver libraries (libcuda.so.*) into the container.
+        # userspace driver libraries (libcuda.so.*) into the container. nGEM reductions ask for the
+        # nGEM PV rather than the IMAT one, so they stay CPU only.
         gpu_job = "imat" in special_pvs
 
         # GEM requires a volume with write access, in order to perform some of the reduction algorithms,
