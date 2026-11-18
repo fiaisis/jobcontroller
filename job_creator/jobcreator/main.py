@@ -12,6 +12,7 @@ from typing import Any
 
 from jobcreator.job_creator import JobCreator
 from jobcreator.queue_consumer import QueueConsumer
+from jobcreator.run_kind import NGEM_SPECIAL_PV, is_ngem_run
 from jobcreator.script_acquisition import post_autoreduction_job
 from jobcreator.utils import (
     create_ceph_mount_path_autoreduction,
@@ -59,11 +60,22 @@ MANILA_SHARE_ACCESS_ID = os.environ.get("MANILA_SHARE_ACCESS_ID", "8045701a-0c3e
 MAX_TIME_TO_COMPLETE = int(os.environ.get("MAX_TIME_TO_COMPLETE", str(60 * 60 * 6)))
 
 
-def _generate_special_pvs(instrument: str) -> list[str]:
+def _generate_special_pvs(instrument: str, is_ngem: bool) -> list[str]:
     """
     A generic function for, based on passed args, returning what the special persistent volumes should be.
+
+    nGEM is checked first as it is a property of the detector used, not of the instrument: an nGEM
+    run reads and writes the nGEM share instead of the data share its instrument would normally use.
+
+    :param instrument: The instrument the run was taken on.
+    :param is_ngem: Whether the message describes an nGEM detector run.
+    :return: The names of the special PVs the job needs.
     """
     special_pvs = []
+
+    if is_ngem:
+        logger.info("nGEM run detected for %s, adding nGEM PV.", instrument)
+        return [NGEM_SPECIAL_PV]
 
     match instrument.lower():
         case "imat":
@@ -78,10 +90,21 @@ def _generate_special_pvs(instrument: str) -> list[str]:
     return special_pvs
 
 
-def _select_runner_image(instrument: str) -> str:
+def _select_runner_image(instrument: str, is_ngem: bool) -> str:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
+
+    nGEM is checked before the instrument: nGEM reductions need Mantid (LoadNGEM), which the
+    Mantid Imaging runner does not contain, so they take the default runner whatever the instrument.
+
+    :param instrument: The instrument the run was taken on.
+    :param is_ngem: Whether the message describes an nGEM detector run.
+    :return: The image the job should run in.
     """
+    if is_ngem:
+        logger.info("nGEM run detected for %s, using default runner image.", instrument)
+        return DEFAULT_RUNNER
+
     match instrument.lower():
         case "imat":
             if IMAGING_RUNNER_SHA is not None:
@@ -94,12 +117,23 @@ def _select_runner_image(instrument: str) -> str:
             return DEFAULT_RUNNER
 
 
-def _select_taints_and_affinity(instrument: str) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
+def _select_taints_and_affinity(instrument: str, is_ngem: bool) -> tuple[list[dict[str, Any]], dict[str, Any] | None]:
     """
     A generic function for, based on passed args, returning what the runner that should be used.
+
+    nGEM is checked before the instrument: the GPU workers exist for Mantid Imaging reconstructions,
+    and pinning CPU only nGEM runs to them just makes them wait behind reconstruction jobs.
+
+    :param instrument: The instrument the run was taken on.
+    :param is_ngem: Whether the message describes an nGEM detector run.
+    :return: The taints and node affinity the job should have.
     """
-    taints = []
-    affinity = None
+    taints: list[dict[str, Any]] = []
+    affinity: dict[str, Any] | None = None
+
+    if is_ngem:
+        logger.info("nGEM run detected for %s, no taints or GPU affinity applied.", instrument)
+        return taints, affinity
 
     match instrument.lower():
         case "imat":
@@ -180,6 +214,8 @@ def process_rerun_message(message: dict[str, Any]) -> None:
     :return: None
     """
     try:
+        # Reruns keep the stored runner image, and pick up nGEM mounts/taints once FIA-API forwards the flag.
+        ngem_run = is_ngem_run(message)
         runner_image = find_sha256_of_image(message["runner_image"])
         script = message["script"]
 
@@ -188,8 +224,8 @@ def process_rerun_message(message: dict[str, Any]) -> None:
             rb_number=str(message["rb_number"]),
         )
 
-        special_pvs = _generate_special_pvs(instrument=message["instrument"])
-        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"])
+        special_pvs = _generate_special_pvs(instrument=message["instrument"], is_ngem=ngem_run)
+        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"], is_ngem=ngem_run)
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{str(message['filename']).lower()}-{uuid.uuid4().hex!s}"
@@ -227,9 +263,10 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
         filename = Path(message["filepath"]).stem
         rb_number = message["experiment_number"]
         instrument_name = message["instrument"]
+        ngem_run = is_ngem_run(message)
         runner_image = message.get("runner_image")
         if runner_image is None:
-            runner_image = _select_runner_image(instrument_name)
+            runner_image = _select_runner_image(instrument_name, ngem_run)
         runner_image = find_sha256_of_image(runner_image)
         autoreduction_request = {
             "filename": filename,
@@ -245,8 +282,8 @@ def process_autoreduction_message(message: dict[str, Any]) -> None:
             "runner_image": runner_image,
         }
 
-        special_pvs = _generate_special_pvs(instrument=instrument_name)
-        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"])
+        special_pvs = _generate_special_pvs(instrument=instrument_name, is_ngem=ngem_run)
+        taints, affinity = _select_taints_and_affinity(instrument=message["instrument"], is_ngem=ngem_run)
 
         # Add UUID which will avoid collisions for reruns
         job_name = f"run-{filename.lower()}-{uuid.uuid4().hex!s}"
