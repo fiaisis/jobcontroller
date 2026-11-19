@@ -12,12 +12,15 @@ from hypothesis import given, strategies
 
 from jobwatcher.job_watcher import (
     JobWatcher,
+    ResourceMetadata,
     _find_latest_raised_error_and_stacktrace_from_reversed_logs,
     _find_pod_from_partial_name,
     _read_pod_logs,
     clean_up_pvcs_for_job,
     clean_up_pvs_for_job,
     get_job_output,
+    parse_job_id,
+    parse_resource_metadata,
 )
 
 JOB_NAME = mock.MagicMock()
@@ -646,7 +649,7 @@ def test_cleanup_job_where_job_is_none(job_watcher_maker):
     jw.job = None
 
     with pytest.raises(AttributeError):
-        jw._cleanup_job()
+        jw.cleanup_job()
 
 
 def test_find_latest_raised_error_and_stacktrace_from_reversed_logs():
@@ -931,3 +934,73 @@ def test_get_job_output_bypasses_kubernetes_client_json_dict_corruption() -> Non
         "output_files": "/output",
         "stacktrace": "",
     }
+
+
+def test_parse_resource_metadata_valid() -> None:
+    now = datetime.now(UTC)
+    resource = mock.MagicMock()
+    resource.metadata.name = "test-job"
+    resource.metadata.namespace = "fia"
+    resource.metadata.creation_timestamp = now
+    resource.metadata.annotations = {"job-id": "42"}
+
+    metadata = parse_resource_metadata(resource)
+
+    assert metadata == ResourceMetadata(
+        name="test-job",
+        namespace="fia",
+        creation_timestamp=now,
+        annotations={"job-id": "42"},
+    )
+
+
+def test_parse_resource_metadata_defaults_none_annotations_to_empty_dict() -> None:
+    now = datetime.now(UTC)
+    resource = mock.MagicMock()
+    resource.metadata.name = "test-pod"
+    resource.metadata.namespace = "fia"
+    resource.metadata.creation_timestamp = now
+    resource.metadata.annotations = None
+
+    metadata = parse_resource_metadata(resource)
+
+    assert metadata.annotations == {}
+
+
+@pytest.mark.parametrize("missing_field", ["metadata", "name", "namespace", "creation_timestamp"])
+def test_parse_resource_metadata_raises_when_required_field_is_none(missing_field: str) -> None:
+    resource = mock.MagicMock()
+    resource.metadata.name = "test-pod"
+    resource.metadata.namespace = "fia"
+    resource.metadata.creation_timestamp = datetime.now(UTC)
+    if missing_field == "metadata":
+        resource.metadata = None
+    else:
+        setattr(resource.metadata, missing_field, None)
+
+    with pytest.raises(ValueError, match="Kubernetes resource is missing required metadata"):
+        parse_resource_metadata(resource)
+
+
+def test_parse_job_id_valid() -> None:
+    expected_job_id = 123
+    metadata = ResourceMetadata(
+        name="test-job",
+        namespace="fia",
+        creation_timestamp=datetime.now(UTC),
+        annotations={"job-id": str(expected_job_id)},
+    )
+
+    assert parse_job_id(metadata) == expected_job_id
+
+
+def test_parse_job_id_raises_when_annotation_missing() -> None:
+    metadata = ResourceMetadata(
+        name="test-job",
+        namespace="fia",
+        creation_timestamp=datetime.now(UTC),
+        annotations={},
+    )
+
+    with pytest.raises(ValueError, match="Job is missing required 'job-id' annotation"):
+        parse_job_id(metadata)
