@@ -4,9 +4,11 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+import requests
 from kubernetes.config import ConfigException
 
 from jobcreator.utils import (
+    SUPPORTED_MANIFEST_MEDIA_TYPES,
     create_ceph_mount_path_autoreduction,
     create_ceph_mount_path_simple,
     ensure_ceph_path_exists_autoreduction,
@@ -62,14 +64,15 @@ def test_ensure_ceph_path_exists():
 def test_get_sha256_using_image_from_ghcr(requests, version, expected_version):
     user_image = "fiaisis/mantid"
     response = mock.MagicMock()
-    response.text = "requests_response"
+    mantid_sha = "6e5f2d070bb67742f354948d68f837a740874d230714eaa476d35ab6ad56caec"
+    response.headers = {"Docker-Content-Digest": f"sha256:{mantid_sha}"}
     requests.get.return_value = response
     expected_headers = {
         "Authorization": f"Bearer {response.json.return_value.get.return_value}",
-        "Accept": "application/vnd.docker.distribution.manifest.v2+json",
+        "Accept": SUPPORTED_MANIFEST_MEDIA_TYPES,
     }
 
-    get_sha256_using_image_from_ghcr(user_image, version)
+    return_value = get_sha256_using_image_from_ghcr(user_image, version)
 
     assert requests.get.call_count == 2  # noqa: PLR2004
     assert requests.get.call_args_list[0] == mock.call(
@@ -81,6 +84,32 @@ def test_get_sha256_using_image_from_ghcr(requests, version, expected_version):
         timeout=5,
         headers=expected_headers,
     )
+    assert return_value == mantid_sha
+
+
+def test_supported_manifest_media_types_include_oci_image_indexes():
+    # Without this media type ghcr.io answers 404 MANIFEST_UNKNOWN for buildx built tags such as mantid:7.0.0
+    assert "application/vnd.oci.image.index.v1+json" in SUPPORTED_MANIFEST_MEDIA_TYPES
+
+
+@mock.patch("jobcreator.utils.requests.get")
+def test_get_sha256_using_image_from_ghcr_raises_rather_than_inventing_a_digest(get):
+    # An error response must never be hashed into a digest that looks valid but cannot be pulled
+    token, unknown_tag = mock.MagicMock(), mock.MagicMock()
+    unknown_tag.raise_for_status.side_effect = requests.exceptions.HTTPError("404 MANIFEST_UNKNOWN")
+    get.side_effect = [token, unknown_tag]
+
+    with pytest.raises(requests.exceptions.HTTPError):
+        get_sha256_using_image_from_ghcr("fiaisis/mantid", "does-not-exist")
+
+
+@pytest.mark.parametrize("digest", [None, "sha512:crazedigest"])
+@mock.patch("jobcreator.utils.requests.get")
+def test_get_sha256_using_image_from_ghcr_raises_without_a_sha256_digest(get, digest):
+    get.return_value.headers = {} if digest is None else {"Docker-Content-Digest": digest}
+
+    with pytest.raises(RuntimeError, match="No sha256 digest found for fiaisis/mantid"):
+        get_sha256_using_image_from_ghcr("fiaisis/mantid", "6.9.1")
 
 
 @mock.patch("jobcreator.utils.logger")
@@ -91,7 +120,7 @@ def test_find_sha256_of_image_exception_is_raised(_, __, logger):  # noqa: PT019
 
     return_value = find_sha256_of_image(image)
 
-    logger.warning.assert_called_once_with(str(Exception("")))
+    logger.exception.assert_called_once()
     assert image == return_value
 
 
