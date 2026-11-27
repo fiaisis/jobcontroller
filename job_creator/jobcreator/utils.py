@@ -2,7 +2,6 @@
 A general utilities module for code that may or may not be reused throughout this repository
 """
 
-import hashlib
 import logging
 import os
 import sys
@@ -19,6 +18,14 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger("jobcreator")
+
+# GHCR will not serve an OCI image index (how buildx builds mantid:7.0.0) unless its media type is named here
+SUPPORTED_MANIFEST_MEDIA_TYPES = (
+    "application/vnd.docker.distribution.manifest.v2+json, "
+    "application/vnd.docker.distribution.manifest.list.v2+json, "
+    "application/vnd.oci.image.manifest.v1+json, "
+    "application/vnd.oci.image.index.v1+json"
+)
 
 
 def create_ceph_path_autoreduction(instrument_name: str, rb_number: str) -> Path:
@@ -156,15 +163,21 @@ def get_sha256_using_image_from_ghcr(user_image: str, version: str = "") -> str:
 
     # Get token
     token_response = requests.get(f"https://ghcr.io/token?scope=repository:{user_image}:pull", timeout=5)
+    token_response.raise_for_status()
     token = token_response.json().get("token")
 
     # Create header
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.docker.distribution.manifest.v2+json"}
+    headers = {"Authorization": f"Bearer {token}", "Accept": SUPPORTED_MANIFEST_MEDIA_TYPES}
 
     # Get response from ghcr for digest
     manifest_response = requests.get(f"https://ghcr.io/v2/{user_image}/manifests/{version}", headers=headers, timeout=5)
-    manifest = manifest_response.text
-    return hashlib.sha256(manifest.encode("utf-8")).hexdigest()
+    manifest_response.raise_for_status()
+
+    # Docker-Content-Digest is the digest of exactly the bytes served, so hashing the body instead only agrees by luck
+    digest = manifest_response.headers.get("Docker-Content-Digest", "")
+    if not digest.startswith("sha256:"):
+        raise RuntimeError(f"No sha256 digest found for {user_image}:{version}, got {digest!r}")
+    return digest.removeprefix("sha256:")
 
 
 def find_sha256_of_image(image: str) -> str:
@@ -187,5 +200,5 @@ def find_sha256_of_image(image: str) -> str:
         logger.info("Found sha256 tag for %s: %s", user_image, version_to_use)
         return f"ghcr.io/{org_name}/{image_name}@sha256:{version_to_use}"
     except Exception as e:
-        logger.warning(str(e))
+        logger.exception("Could not resolve the sha256 of %s, using it unpinned: %s", image, str(e))
         return image
