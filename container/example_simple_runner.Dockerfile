@@ -1,4 +1,4 @@
-FROM python:3.14.0-slim
+FROM python:3.15.1-slim
 
 RUN pip install pandas uniplot
 
